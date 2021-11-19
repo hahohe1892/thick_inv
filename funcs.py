@@ -104,7 +104,7 @@ from IPython.display import display, Javascript
 import time
 import hashlib
 
-def save_and_push(notebook_path, branch_name, nc_file, commit_message):
+def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
         
     current_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('ascii').strip()
     if current_branch != branch_name:
