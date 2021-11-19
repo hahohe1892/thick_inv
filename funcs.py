@@ -103,6 +103,7 @@ def shift(data, u, v, dx):
 from IPython.display import display, Javascript
 import time
 import hashlib
+import shelve
 
 def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
         
@@ -129,3 +130,17 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
         proc = subprocess.check_output(save_model, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         raise ValueError('something went wrong')
+
+    bk = shelve.open('./data/{}.pkl'.format(hashmark),'n')
+    exceptions = ['NPI_50m_DEM', 'NPI_DEM', 'NPI_DEM_o', 'R2_50m_Vel', 'R2_50m_Vx', 'R2_50m_Vy', 'R2_Vel', 'R2_Vx', 'R2_Vy', 'Z_09', 'Z_14', 'Z_50m_09', 'Z_50m_14', 'Z_50m_20', 'Z_50m_90', 'bed', 'bed_mask', 'bed_mask_meta', 'bed_o', 'dhdt_0914', 'dhdt_50m_0914', 'mat_DEM_Vel', 'mat_RADAR', 'ocean_50m_mask', 'retreat_50m_mask','smb_50m_fit', 'smb_fit', 'smb_net_0914', 'smb_net_df', 'smb_x', 'smb_y', 'smb_z', 'smb_xyz_df', 'surf', 'surf_mask','surf_mask_meta', 'surf_o', 'thk', 'thk_mask', 'thk_mask_meta', 'thk_o', 'vel_0914', 'vel_50m_0914', 'vel_df', 'vel_x', 'vel_y', 'vel_z', 'vel_xyz_df', 'x_50m', 'y_50m']
+    for k in dir():
+        if k in exceptions:
+            continue
+        if k.split('_')[0]=='':
+            continue
+        try:
+            bk[k] = globals()[k]
+        except Exception:
+            print('{} was not saved'.format(k))
+            pass
+    bk.close()
