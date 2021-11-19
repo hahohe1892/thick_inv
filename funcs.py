@@ -100,3 +100,32 @@ def shift(data, u, v, dx):
     newgrid = griddata(points, data.flatten(), (xi.flatten(), yi.flatten())).reshape(np.shape(u))
     return newgrid
 
+from IPython.display import display, Javascript
+import time
+import hashlib
+
+def save_and_push(notebook_path, branch_name, nc_file, commit_message):
+        
+    current_branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('ascii').strip()
+    if current_branch != branch_name:
+        raise ValueError('not on correct branch')
+                        
+    start_md5 = hashlib.md5(open(notebook_path,'rb').read()).hexdigest()
+    display(Javascript('IPython.notebook.save_checkpoint();'))
+    current_md5 = start_md5
+                                        
+    while start_md5 == current_md5:
+        time.sleep(1)
+        current_md5 = hashlib.md5(open(notebook_path,'rb').read()).hexdigest()
+                                                             
+    hashmark =  subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+                                                                                    
+    save_model = ["cp", "".format(nc_file), "./models/{}.nc".format(hashmark)]
+    stage = ["git", "add", "{}".format(notebook_path)]
+    commit = ["git", "commit", "-m", commit_message]
+    try:
+        proc = subprocess.check_output(stage, stderr=subprocess.STDOUT)
+        proc = subprocess.check_output(commit, stderr=subprocess.STDOUT)
+        proc = subprocess.check_output(save_model, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError:
+        raise ValueError('something went wrong')
