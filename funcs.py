@@ -86,7 +86,7 @@ def get_nc_data(file, var, time):
     return var_data
 
 def shift(data, u, v, dx):
-    x_shift, y_shift = np.meshgrid(range(nx), range(ny))
+    x_shift, y_shift = np.meshgrid(range(np.shape(data)[1]), range(np.shape(data)[0]))
     uv_mag = np.ones_like(u)
     uv_mag[np.logical_or(u!=0, v!=0)] = np.sqrt(u[np.logical_or(u!=0, v!=0)]**2+v[np.logical_or(u!=0, v!=0)]**2)
     x_shift = x_shift+(u/uv_mag)*dx
@@ -95,7 +95,7 @@ def shift(data, u, v, dx):
     points = np.zeros((np.shape(u)[0]*np.shape(u)[1],2))
     points[:,0] = x_shift.flatten()
     points[:,1]=y_shift.flatten()
-    xi, yi = np.meshgrid(range(nx), range(ny))
+    xi, yi = np.meshgrid(range(np.shape(data)[1], range(np.shape(data)[0]))
 
     newgrid = griddata(points, data.flatten(), (xi.flatten(), yi.flatten())).reshape(np.shape(u))
     return newgrid
@@ -103,6 +103,7 @@ def shift(data, u, v, dx):
 from IPython.display import display, Javascript
 import time
 import hashlib
+import shelve
 
 def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
         
@@ -120,7 +121,7 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
                                                              
     hashmark =  subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
                                                                                     
-    save_model = ["cp", "".format(nc_file), "./models/{}.nc".format(hashmark)]
+    save_model = ["cp", "".format(nc_file), "./models/{}_{}.nc".format(branch_name, hashmark)]
     stage = ["git", "add", "{}".format(notebook_path)]
     commit = ["git", "commit", "-m", commit_message]
     try:
@@ -129,3 +130,17 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
         proc = subprocess.check_output(save_model, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         raise ValueError('something went wrong')
+
+    bk = shelve.open('./data/{}_{}.pkl'.format(branch_name, hashmark),'n')
+    exceptions = ['NPI_50m_DEM', 'NPI_DEM', 'NPI_DEM_o', 'R2_50m_Vel', 'R2_50m_Vx', 'R2_50m_Vy', 'R2_Vel', 'R2_Vx', 'R2_Vy', 'Z_09', 'Z_14', 'Z_50m_09', 'Z_50m_14', 'Z_50m_20', 'Z_50m_90', 'bed', 'bed_mask', 'bed_mask_meta', 'bed_o', 'dhdt_0914', 'dhdt_50m_0914', 'mat_DEM_Vel', 'mat_RADAR', 'ocean_50m_mask', 'retreat_50m_mask','smb_50m_fit', 'smb_fit', 'smb_net_0914', 'smb_net_df', 'smb_x', 'smb_y', 'smb_z', 'smb_xyz_df', 'surf', 'surf_mask','surf_mask_meta', 'surf_o', 'thk', 'thk_mask', 'thk_mask_meta', 'thk_o', 'vel_0914', 'vel_50m_0914', 'vel_df', 'vel_x', 'vel_y', 'vel_z', 'vel_xyz_df', 'x_50m', 'y_50m']
+    for k in sorted(globals()):
+        if k in exceptions:
+            continue
+        if k.split('_')[0]=='':
+            continue
+        try:
+            bk[k] = globals()[k]
+        except Exception:
+            print('{} was not saved'.format(k))
+            pass
+    bk.close()
