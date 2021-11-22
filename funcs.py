@@ -113,7 +113,7 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
     if current_branch != branch_name:
         raise ValueError('not on correct branch')
         
-    if (os.path.exists(nc_file) or os.path.exists('./models/') or os.path.exists('./data/')) == False:
+    if (os.path.exists(nc_file) and os.path.exists('./models/') and os.path.exists('./data/')) == False:
         raise ValueError('nc_file or target folder does not exist')
     
     start_md5 = hashlib.md5(open(notebook_path,'rb').read()).hexdigest()
