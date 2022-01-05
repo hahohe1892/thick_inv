@@ -778,55 +778,10 @@ print('populating model')
 md = model(data)
 
 runs = [
-        {'it_parameters.pmax': 7000, 'it_parameters.time_max': 20, 'it_fields.B_rec': copy(md.it_fields.S_ref)},  #start from bed is surface
-        {'it_parameters.pmax': 5000}, #long run without any friction update
-        {'it_parameters.pmax': 5000, 'it_parameters.p_friction': 500}, #long run with friction update
-        {'it_parameters.dt': 0.01},  #very short dt
-        {'it_parameters.dt': 0.05},  #short dt
-        {'it_parameters.dt': 0.2}, #bit longer dt
-        {'it_parameters.dt': 0.5},   #somewhat longer dt
-        {'it_parameters.dt': 1}, #even longer dt
-        {'it_parameters.dt': 5}, #very long dt
-        {'it_parameters.beta': 1}, #larger beta
-        {'it_parameters.beta': 0.25, 'it_parameters.pmax': 5998, 'it_parameters.time_max': 15}, #smaller beta (and longer time)
-        {'it_parameters.shift': 0},    #no shift
-        {'it_parameters.shift': 0.5},    #larger shift
-        {'it_parameters.delta_surf': 0.05},  #larger surface adjustment
-        {'it_parameters.delta_surf': 0.1},  #very large surface adjustment
-        {'it_parameters.delta_surf': 0}, #no surface adjustment
-        {'it_parameters.p_friction': 100},  #update friction more often
-        {'it_parameters.p_friction': 1000}, #update friction more rarely
-        {'it_parameters.tauc_scale': 0.5},  #update friction by half misfit
-        {'it_parameters.tauc_scale': 2},    #update friction by double misfit
-        {'it_parameters.diff_lim': 1e-2},   #lower diffusivity limit
-        {'it_parameters.diff_lim': 5e-1},   #higher diffusivity limit
-        {'it_parameters.A': 0.5*md.it_parameters.A},    #too low A
-        {'it_parameters.A': 2*md.it_parameters.A},    #too high A
-        {'it_parameters.ice_density': 800}, #too low ice density
-        {'it_parameters.ice_density': 1000}, #too high ice density
-        {'it_parameters.smooth_surf_in': (.6,.3)},  #less smoothing of input surface
-        {'it_parameters.smooth_B_in': (1,3)},   #more smoothing of starting bed
-        {'it_fields.smb': data.smb*1.1},    #overestimate SMB by 10%
-        {'it_fields.smb': data.smb*1.3},    #overestimate SMB by 30%
-        {'it_fields.smb': data.smb*2},    #overestimate SMB by 100%
-        {'it_fields.smb': data.smb*0.9},    #underestimate SMB by 10%
-        {'it_fields.smb': data.smb*0.7},    #underestimate SMB by 30%
-        {'it_fields.smb': data.smb*0.5},    #underestimate SMB by 50%
-        {'it_fields.S_rec': md.it_fields.S_rec + 50 * np.random.randn(np.shape(md.it_fields.S_rec)[0], np.shape(md.it_fields.S_rec)[1])},   #random errors in surface
-        {'it_fields.S_rec': md.it_fields.S_rec + 100 * np.random.randn(np.shape(md.it_fields.S_rec)[0], np.shape(md.it_fields.S_rec)[1])},   #larger random errors in surface
-        {'it_fields.smb': data.smb*1.3, 'it_parameters.p_friction': 500},    #overestimate SMB by 30% and update friction
-        {'it_fields.smb': data.smb*0.7, 'it_parameters.p_friction': 500},    #underestimate SMB by 30% and update friction
-        {'it_fields.tauc_rec': np.maximum(20000, 20000 + md.it_fields.B_init * ((1e7-20000)/np.max(md.it_fields.B_init)))}, #start from elevation dependent friction, no updates
-        {'it_parameters.p_friction': 500, 'it_fields.tauc_rec': np.maximum(20000, 20000 + md.it_fields.B_init * ((1e7-20000)/np.max(md.it_fields.B_init)))}, #start from elevation dependent friction with updates
-        {'it_fields.tauc_rec': np.ones_like(md.it_fields.S_ref)*4e6}, #constant tauc
-        {'it_parameters.p_friction': 500,'it_fields.tauc_rec': np.ones_like(md.it_fields.S_ref)*4e6}, #constant tauc with updates
-        {'it_fields.vel_mes': gauss_filter(md.it_fields.vel_mes, 1, 3), 'it_parameters.p_friction': 500}, #smooth velocity for friction
-        {'it_fields.vel_mes': gauss_filter(md.it_fields.vel_mes, 2, 6), 'it_parameters.p_friction': 500}, #smooth velocity for friction even more
-        {'it_fields.dh_ref': np.zeros_like(md.it_fields.S_ref)},    #assume steady-state
-        {'it_fields.smb': data.smb*1.3, 'it_fields.dh_ref': md.it_fields.dh_ref*1.3},    #overestimate SMB and dh_ref by 30%
-        {'it_fields.smb': data.smb*0.7, 'it_fields.dh_ref': md.it_fields.dh_ref*0.7},    #overestimate SMB and dh_ref by 30%
-        {'it_fields.dh_ref': np.mean(data.smb)+ 2 * np.random.randn(np.shape(md.it_fields.S_rec)[0], np.shape(md.it_fields.S_rec)[1])}, #distribute dh_ref randomly but with mean corresponding to smb
-        {'it_fields.smb': np.mean(md.it_fields.dh_ref)+ 2 * np.random.randn(np.shape(md.it_fields.S_rec)[0], np.shape(md.it_fields.S_rec)[1])}, #distribute smb randomly but with mean corresponding to dh_ref
+        {'it_parameters.dt': 0.2, 'it_parameters.max_time': 30}, #bit longer dt
+        {'it_parameters.dt': 0.5, 'it_parameters.max_time': 30},   #somewhat longer dt
+        {'it_parameters.dt': 1, 'it_parameters.max_time': 50}, #even longer dt
+        {'it_parameters.dt': 5, 'it_parameters.max_time': 80}, #very long dt
         ]
 
         
