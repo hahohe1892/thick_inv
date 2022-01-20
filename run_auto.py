@@ -37,7 +37,7 @@ print('populating model')
 md = model(data)
 
 runs = [
-        {'it_fields.vel_mes': data.vel*2.7*365, 'it_parameters.p_friction': 500}
+        {'it_fields.vel_mes': data.Adrian_vel, 'it_parameters.p_friction': 500}
         ]
 
         

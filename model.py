@@ -174,6 +174,13 @@ class input_data():
         
         vel_df = pd.read_excel (path, 0, header=None)
         self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(10,18,2)]), axis=1)
+
+    def get_vel_Adrian(self):
+        path = 'SV_vels_HDF.mat'
+        Adrian_vel_mat = scipy.io.loadmat(path)['SV_vels'][0,0]
+        self.Adrian_vel = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[3]).flatten(), (Adrian_vel_mat[4]).flatten()), Adrian_vel_mat[0].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
+        self.Adrian_vel[np.isnan(self.Adrian_vel)] = self.itslive_vel[np.isnan(self.Adrian_vel)]
+
         
     def resample_input(self):
         self.data_res = 50
@@ -274,6 +281,8 @@ class input_data():
         self.resample_input()
 
         self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
+
+        self.get_vel_Adrian()
 
         self.filter_dhdt()
 
