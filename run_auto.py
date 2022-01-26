@@ -37,7 +37,10 @@ print('populating model')
 md = model(data)
 
 runs = [
-        {'it_fields.vel_mes': data.Adrian_vel, 'it_parameters.p_friction': 500}
+        {'it_fields.vel_mes': data.vel_Adrian, 'it_parameters.p_friction': 500, 'it_parameters.tauc_scale':0.5},
+        {'it_fields.vel_mes':data.vel_Adrian, 'it_parameters.p_friction': 500, 'it_parameters.delta_surf':0.05},
+        {'it_fields.vel_mes':data.vel_Adrian, 'it_parameters.p_friction':500, 'it_parameters.smooth_surf_in':(1.2,3.2)},
+        {'it_fields.vel_mes':data.vel_Adrian, 'it_parameters.p_friction':500, 'it_parameters.shift':0}
         ]
 
         
@@ -57,8 +60,8 @@ for q,run in enumerate(runs):
             save_string += string + '_'
         elif isinstance(run[string], float):
             save_string += string + '_' + '{}'.format(round(run[string], 2)) + '_'
-    if os.path.exists('./auto_ncs/KK_auto_{}_{}.nc'.format(save_string, q)) or os.path.exists('./auto_data/KK_auto_{}_{}.pkl'.format(save_string, q)):
-        raise ValueError('run KK_auto_{}_{} already exists'.format(save_string, q))
+    if os.path.exists('./auto_ncs/KK_auto_1420_{}_{}.nc'.format(save_string, q)) or os.path.exists('./auto_data/KK_auto_1420_{}_{}.pkl'.format(save_string, q)):
+        raise ValueError('run KK_auto_1420_{}_{} already exists'.format(save_string, q))
     save_strings.append(save_string)
 
 for i,run in enumerate(runs):
@@ -81,9 +84,9 @@ for i,run in enumerate(runs):
         print('now iterating...')
         md.iterate(data)
         print('iterating done, now saving')
-        with open('./auto_data/KK_auto_{}_{}.pkl'.format(save_strings[i], i), 'wb') as outp:
+        with open('./auto_data/KK_auto_1420_{}_{}.pkl'.format(save_strings[i], i), 'wb') as outp:
             pickle.dump(md, outp, pickle.HIGHEST_PROTOCOL)
-        subprocess.call(['cp', md.file_locations.it_out, './auto_ncs/KK_auto_{}_{}.nc'.format(save_strings[i], i)])
+        subprocess.call(['cp', md.file_locations.it_out, './auto_ncs/KK_auto_1420_{}_{}.nc'.format(save_strings[i], i)])
         print('saving done, this was run {} out of {} runs'.format(i+1, len(runs)))
         md.__init__(data)
     except:

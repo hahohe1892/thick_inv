@@ -30,6 +30,7 @@ class input_data():
             self.x, self.y = np.meshgrid(1,1)
             self.smb = np.zeros_like(self.x, dtype='float')
             self.dem = np.zeros_like(self.x, dtype='float')
+            self.NPI_DEM = np.zeros_like(self.x, dtype='float')            
             self.dhdt = np.zeros_like(self.x, dtype='float')
             self.mask = np.zeros_like(self.x, dtype='float')
             self.vel = np.zeros_like(self.x, dtype='float')
@@ -41,6 +42,7 @@ class input_data():
                     
     def reset_shape(self):
         self.dem = np.zeros_like(self.x, dtype='float')
+        self.NPI_DEM = np.zeros_like(self.x, dtype='float')
         self.smb = np.zeros_like(self.x, dtype='float')
         self.dhdt = np.zeros_like(self.x, dtype='float')
         self.mask = np.zeros_like(self.x, dtype='float')
@@ -50,27 +52,25 @@ class input_data():
                 
     def set_xy(self, matrix):
         self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
-        
-
    
     def import_NPI_DEM(self, path):
         self.NPI_DEM_o = rasterio.open(path)
         self.window = self.NPI_DEM_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y))
-        self.dem[1:,1:] = np.flip(self.NPI_DEM_o.read(1, window = self.window), axis = 0) 
+        self.NPI_DEM[1:,1:] = np.flip(self.NPI_DEM_o.read(1, window = self.window), axis = 0) 
         
     def get_vel(self, matrix):
         
-        self.vx = np.zeros_like(self.x, dtype='float')
-        self.vx[:np.shape(self.x)[0]-int(10000/50),:] = matrix[6]
-        self.vx[np.isnan(self.vx)] = 0
+        self.vx_Jack = np.zeros_like(self.x, dtype='float')
+        self.vx_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[6]
+        self.vx_Jack[np.isnan(self.vx_Jack)] = 0
         
-        self.vy = np.zeros_like(self.x, dtype='float')
-        self.vy[:np.shape(self.x)[0]-int(10000/50),:] = matrix[7]
-        self.vy[np.isnan(self.vy)] = 0
+        self.vy_Jack = np.zeros_like(self.x, dtype='float')
+        self.vy_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[7]
+        self.vy_Jack[np.isnan(self.vy_Jack)] = 0
         
-        self.vel = np.zeros_like(self.x, dtype='float')
-        self.vel[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]
-        self.vel[np.isnan(self.vel)] = 0
+        self.vel_Jack = np.zeros_like(self.x, dtype='float')
+        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]
+        self.vel_Jack[np.isnan(self.vel_Jack)] = 0
         
     def get_outlines(self, path):
         outline = gpd.read_file(path)
@@ -104,38 +104,52 @@ class input_data():
         self.mask_Ko = np.zeros_like(self.x, dtype='float')
         self.mask_Ko[(np.shape(self.mask_Ko)[0]-np.shape(NPI_mask_Ko)[0]+shift_y_Ko):(np.shape(self.mask_Ko)[0]+shift_y_Ko), shift_x_Ko:(shift_x_Ko+np.shape(NPI_mask_Ko)[1])]=NPI_mask_Ko
 
-        self.mask_Kr = np.zeros_like(self.x, dtype='float')
-        self.mask_Kr[(np.shape(self.mask_Kr)[0]-np.shape(NPI_mask_Kr)[0]+shift_y_Kr):(np.shape(self.mask_Kr)[0]+shift_y_Kr), shift_x_Kr:(shift_x_Kr+np.shape(NPI_mask_Kr)[1])]=NPI_mask_Kr
+        #self.mask_Kr = np.zeros_like(self.x, dtype='float')
+        #self.mask_Kr[(np.shape(self.mask_Kr)[0]-np.shape(NPI_mask_Kr)[0]+shift_y_Kr):(np.shape(self.mask_Kr)[0]+shift_y_Kr), shift_x_Kr:(shift_x_Kr+np.shape(NPI_mask_Kr)[1])]=NPI_mask_Kr
 
     def get_dhdt(self, matrix):
         self.dhdt0 = np.zeros_like(self.x, dtype='float')*np.nan
         self.dhdt1 = np.zeros_like(self.x, dtype='float')*np.nan
-        self.dhdt0[:np.shape(self.x)[0]-int(10000/50),:] = matrix[3]
-        self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[4]
-        
+        self.dhdt0[:np.shape(self.x)[0]-int(10000/50),:] = matrix[4]
+        self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
+    
         self.mask_Kr = np.ones_like(self.x)
         self.mask_Kr[np.isnan(self.dhdt1)] = 0
+        self.mask_Kr[0:10,:]=0
 
         
     def get_mask(self):
-        self.retreat_mask = np.zeros_like(self.x, dtype='float')
-        self.retreat_mask[np.logical_and(self.dem<100, np.logical_and(self.dhdt0>1, -1*self.mask_Kr+1))] = 1
-        self.retreat_mask[self.retreat_mask+self.mask_Kr==2]=0        
+        #self.retreat_mask = np.zeros_like(self.x, dtype='float')
+        #self.retreat_mask[np.logical_and(self.NPI_DEM<100, np.logical_and(self.dhdt0>1, -1*self.mask_Kr+1))] = 1
+        #self.retreat_mask[self.retreat_mask+self.mask_Kr==2]=0
+        #self.retreat_mask[np.logical_and(np.isnan(self.dhdt1), np.isnan(self.dhdt0)==False)]=1
         
         self.mask = self.mask_Ko + self.mask_Kr
         self.mask[self.mask>0] = 1
         
-        self.dem[self.retreat_mask==1] = 0
+        #self.NPI_DEM[self.retreat_mask==1] = 0
 
     def clean_dhdt(self):
-        self.dhdt0[self.mask_Kr==0] = self.dem[self.mask_Kr==0]
-        self.dhdt1[self.mask_Kr==0] = self.dem[self.mask_Kr==0]
         
-        self.dhdt0[np.isnan(self.dhdt0)] = self.dem[np.isnan(self.dhdt0)]
-        self.dhdt1[np.isnan(self.dhdt1)] = self.dem[np.isnan(self.dhdt1)]
+        self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
+        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
+
+        ## set ocean (i.e. what is not land or glacier) to negative value
+        self.ocean_mask = np.zeros_like(self.x)
+        self.ocean_mask[self.NPI_DEM<1]=1
+        self.ocean_mask[(self.dhdt1-self.dhdt0)>10]=1  #this should reflect area where the glacier has retreated
+        self.ocean_mask[:,120:-1]=0
+        self.ocean_mask[:10,:]=0
+        self.ocean_mask[:,:10]=0
+
+        self.dhdt0[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
+        self.dhdt1[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         
-        self.dhdt = (self.dhdt1 - self.dhdt0)/5
+        self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
+        self.dem = (self.dhdt0+self.dhdt1)/2
+        self.dem[self.ocean_mask==1]=-100
+        self.dhdt[self.ocean_mask==1]=0
 
         
     def set_dhdt_Ko(self):
@@ -156,11 +170,11 @@ class input_data():
         smb_y = np.array(smb_xyz_df.loc[:,2])
         smb_z = np.array(smb_xyz_df.loc[:,3])
         
-        smb_net_0914 = np.array(smb_net_df.loc[1:,7:12])/100*(10/9)   #convert to m.ice.eq.
-        smb_net_0914 = np.nanmean(smb_net_0914, axis=1)
+        smb_net_1420 = np.array(smb_net_df.loc[1:,12:18])/100*(10/9)   #convert to m.ice.eq.
+        smb_net_1420 = np.nanmean(smb_net_1420, axis=1)
         
         ### interpolate smb with elevation ###
-        poly = np.poly1d(np.polyfit(smb_z,smb_net_0914,1))
+        poly = np.poly1d(np.polyfit(smb_z,smb_net_1420,1))
         self.smb = poly(self.dem)
         self.smb[self.smb<-2] = -2
         self.smb[self.smb>1] = 1
@@ -173,13 +187,13 @@ class input_data():
         vel_z = np.array(vel_xyz_df.loc[:,3])
         
         vel_df = pd.read_excel (path, 0, header=None)
-        self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(10,18,2)]), axis=1)
+        self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
 
     def get_vel_Adrian(self):
         path = 'SV_vels_HDF.mat'
         Adrian_vel_mat = scipy.io.loadmat(path)['SV_vels'][0,0]
-        self.Adrian_vel = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[3]).flatten(), (Adrian_vel_mat[4]).flatten()), Adrian_vel_mat[0].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
-        self.Adrian_vel[np.isnan(self.Adrian_vel)] = self.itslive_vel[np.isnan(self.Adrian_vel)]
+        self.vel_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[3]).flatten(), (Adrian_vel_mat[4]).flatten()), Adrian_vel_mat[0].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
+        self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.itslive_vel[np.isnan(self.vel_Adrian)]
 
         
     def resample_input(self):
@@ -192,6 +206,7 @@ class input_data():
         self.dhdt = zoom(self.dhdt, self.resample)
         self.smb = zoom(self.smb, self.resample)
         self.dem = zoom(self.dem, self.resample)
+        self.NPI_DEM = zoom(self.NPI_DEM, self.resample)
         self.vel = zoom(self.vel, self.resample)
         self.vx = zoom(self.vx, self.resample)
         self.vy = zoom(self.vy, self.resample)
@@ -199,9 +214,19 @@ class input_data():
         self.mask = np.around(zoom(self.mask, self.resample), 0)
         self.mask_Kr = np.around(zoom(self.mask_Kr, self.resample), 0)
         self.mask_Ko = np.around(zoom(self.mask_Ko, self.resample), 0)
-                
+        self.ocean_mask = np.around(zoom(self.ocean_mask, self.resample), 0)
+              
         self.x = zoom(self.x, self.resample)
-        self.y = zoom(self.y, self.resample) 
+        self.y = zoom(self.y, self.resample)
+
+        self.contact_zone = np.zeros_like(self.x)
+        for i in range(np.shape(self.contact_zone)[1]):
+            for j in range(np.shape(self.contact_zone)[0]):
+                if self.ocean_mask[j,i]==0:
+                    continue
+                x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
+                circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
+                self.contact_zone[np.logical_and(self.mask==1, circle)]=1
 
     def get_itslive_vel(self, paths):
         itslive_vel_o = rasterio.open(paths[0])
@@ -294,14 +319,15 @@ class input_data():
 class radar_data():
     
     def __init__(self):
-        self.x = []
-        self.y = []
-        self.rad = []
+        self.rad_mat = scipy.io.loadmat('./kronebreen/HDF_radar_data.mat')['HDF_radar_data'][0,0]
+        self.x = self.rad_mat[0]
+        self.y = self.rad_mat[1]
+        self.rad = self.rad_mat[2]
         self.x_arr = []
         self.mask_arr = []
         self.rad_arr = []
         
-    def rad_as_array(input):
+    def rad_as_array(self, input):
         #find the index that is associated with the radar x-y coordiantes
         gr = np.meshgrid(range(np.shape(input.dem)[1]), range(np.shape(input.dem)[0]))
         index_y = get_nearest(input.x,input.y,gr[1], self.x, self.y) 
@@ -470,7 +496,7 @@ def create_script(forward_or_iteration, nx, ny):
     print('CLIMATE="-surface given -surface_given_file $CLIMATEFILE"')
     print('grid="-Mx {} -My {} -Mz 50 -Mbz 1 -Lz 1500 -Lbz 1"'.format(nx, ny))
     print('PHYS="-stress_balance ssa+sia -sia_flow_law isothermal_glen -ssa_flow_law isothermal_glen"')# -basal_resistance.beta_lateral_margin 0 -stress_balance.ssa.fd.lateral_drag.viscosity 0"')
-    print('THERMAL="-energy none"')
+    print('THERMAL="-energy none -calving float_kill"')
     #print('OCEAN="-dry"')
     print('CONF="-config_override kronebreen_kongsbreen_conf.nc"')
 
@@ -563,7 +589,7 @@ def initial_bed_guess(input, n = 20):
         sin_slope_smooth = smooth_stress_coupling(H_smooth, input.dem_sin_slope, input.mask, 4, 8,2, input.res)
         H_smooth =(tau*.5)*1e5/(sin_slope_smooth*input.g*input.ice_density)
     
-    input.initial_thickness = H_smooth
+    input.initial_thickness = H_smooth*(-1*input.ocean_mask+1)
     
     return input
 
@@ -603,8 +629,11 @@ class model():
             self.initial_thickness = initial_bed_guess(input, 20).initial_thickness
             self.B_rec = self.S_rec - self.initial_thickness           # no smoothing applied in standard initialization
             self.tauc_rec = (500+self.B_rec)*1e3
+            self.tauc_rec[input.ocean_mask==1]=np.median(self.tauc_rec[input.mask==1])
             self.dh_ref = input.dhdt
             self.mask = input.mask
+            self.ocean_mask = input.ocean_mask
+            self.contact_zone = input.contact_zone
             self.vel_mes = input.itslive_vel
             self.smb = input.smb
             self.B_init = copy(self.B_rec)
@@ -706,10 +735,15 @@ class model():
         self.it_fields.B_rec = self.it_fields.S_rec - self.it_products.H_rec
         
     def mask_fields(self):
-        self.it_fields.B_rec[self.it_fields.B_rec>self.it_fields.S_rec] = self.it_fields.S_rec[self.it_fields.B_rec>self.it_fields.S_rec]     
-        self.it_fields.B_rec[self.it_fields.B_rec>self.it_fields.S_ref] = self.it_fields.S_rec[self.it_fields.B_rec>self.it_fields.S_ref]
         self.it_fields.B_rec[self.it_fields.mask==0] = self.it_fields.S_ref[self.it_fields.mask==0]
         self.it_fields.S_rec[self.it_fields.mask==0] = self.it_fields.S_ref[self.it_fields.mask==0]
+        
+        self.it_fields.B_rec[self.it_fields.contact_zone==1]=shift(self.it_fields.B_rec,self.it_products.u_mod,self.it_products.v_mod,1)[self.it_fields.contact_zone==1]
+        self.it_fields.B_rec[self.it_fields.ocean_mask==1]=shift(self.it_fields.B_rec,self.it_products.u_mod,self.it_products.v_mod,2)[self.it_fields.ocean_mask==1]
+
+        self.it_fields.B_rec[self.it_fields.B_rec>self.it_fields.S_rec] = self.it_fields.S_rec[self.it_fields.B_rec>self.it_fields.S_rec]     
+        self.it_fields.B_rec[self.it_fields.B_rec>self.it_fields.S_ref] = self.it_fields.S_ref[self.it_fields.B_rec>self.it_fields.S_ref]
+
         
     def append_series(self):
         self.series.B_rec_all.append(self.it_fields.B_rec)
@@ -752,6 +786,34 @@ class model():
         
         self.it_products.start_time = time.time()
         for p in range(self.it_parameters.pmax):
+            print(p)
+            self.it_products.h_old = self.it_fields.S_rec - self.it_fields.B_rec     
+            subprocess.call(['cp', self.file_locations.it_out, self.file_locations.it_in])
+            self.update_nc()
+            self.short_forward()
+            self.it_products.h_rec = get_nc_data(self.file_locations.it_out, 'thk', 0)
+            self.calc_dh_rec()
+            self.get_vels_mod()
+            self.calc_misfit()
+            self.update_bed()
+            self.update_surface()
+            self.calc_slope()
+            self.correct_for_diffusivity()
+            self.mask_fields()
+            self.append_series()
+            if p>0 and p%self.it_parameters.p_friction == 0:
+                self.update_tauc()
+            if time.time() > self.it_products.start_time + self.it_parameters.max_time * 60 * 60:
+                self.warnings.append('run did not finish in designated max time')
+                break
+
+    def restart(self, it_step):
+        self.it_fields.S_rec = self.series.S_rec_all[it_step]
+        self.it_fields.B_rec = self.series.B_rec_all[it_step]
+        self.it_fields.tauc_rec = self.series.tauc_recs[it_step]
+        self.it_products.start_time = time.time()
+        for p in range(self.it_parameters.pmax):
+            print(p)
             self.it_products.h_old = self.it_fields.S_rec - self.it_fields.B_rec     
             subprocess.call(['cp', self.file_locations.it_out, self.file_locations.it_in])
             self.update_nc()
