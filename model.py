@@ -33,12 +33,12 @@ class input_data():
             self.NPI_DEM = np.zeros_like(self.x, dtype='float')            
             self.dhdt = np.zeros_like(self.x, dtype='float')
             self.mask = np.zeros_like(self.x, dtype='float')
-            self.vel = np.zeros_like(self.x, dtype='float')
-            self.vx = np.zeros_like(self.x, dtype='float')
-            self.vy = np.zeros_like(self.x, dtype='float')
+            self.vel_Jack = np.zeros_like(self.x, dtype='float')
+            self.vx_Jack = np.zeros_like(self.x, dtype='float')
+            self.vy_Jack = np.zeros_like(self.x, dtype='float')
     
     def check_shape(self):
-        check_shape(self.x, [self.dem, self.smb, self.dhdt, self.mask, self.vel, self.vx, self.vy])
+        check_shape(self.x, [self.dem, self.smb, self.dhdt, self.mask, self.vel_Jack, self.vx_Jack, self.vy_Jack])
                     
     def reset_shape(self):
         self.dem = np.zeros_like(self.x, dtype='float')
@@ -46,9 +46,9 @@ class input_data():
         self.smb = np.zeros_like(self.x, dtype='float')
         self.dhdt = np.zeros_like(self.x, dtype='float')
         self.mask = np.zeros_like(self.x, dtype='float')
-        self.vel = np.zeros_like(self.x, dtype='float')
-        self.vx = np.zeros_like(self.x, dtype='float')
-        self.vy = np.zeros_like(self.x, dtype='float')
+        self.vel_Jack = np.zeros_like(self.x, dtype='float')
+        self.vx_Jack = np.zeros_like(self.x, dtype='float')
+        self.vy_Jack = np.zeros_like(self.x, dtype='float')
                 
     def set_xy(self, matrix):
         self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
@@ -114,7 +114,7 @@ class input_data():
         self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
     
         self.mask_Kr = np.ones_like(self.x)
-        self.mask_Kr[np.isnan(self.dhdt1)] = 0
+        self.mask_Kr[np.isnan(self.dhdt0)] = 0
         self.mask_Kr[0:10,:]=0
 
         
@@ -132,22 +132,25 @@ class input_data():
     def clean_dhdt(self):
         
         self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
-        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
 
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
-        self.ocean_mask[self.NPI_DEM<1]=1
-        self.ocean_mask[(self.dhdt1-self.dhdt0)>10]=1  #this should reflect area where the glacier has retreated
+        self.ocean_mask[self.NPI_DEM<90]=1
+        #self.ocean_mask[(self.dhdt1-self.dhdt0)>10]=1  #this should reflect area where the glacier has retreated
+        #self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
         self.ocean_mask[:,120:-1]=0
         self.ocean_mask[:10,:]=0
         self.ocean_mask[:,:10]=0
+        self.ocean_mask[self.mask==1]=0
+
+        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
 
         self.dhdt0[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         self.dhdt1[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         
         self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
-        self.dem = (self.dhdt0+self.dhdt1)/2
+        self.dem = copy(self.dhdt0)#(self.dhdt0+self.dhdt1)/2
         self.dem[self.ocean_mask==1]=-100
         self.dhdt[self.ocean_mask==1]=0
 
@@ -207,9 +210,9 @@ class input_data():
         self.smb = zoom(self.smb, self.resample)
         self.dem = zoom(self.dem, self.resample)
         self.NPI_DEM = zoom(self.NPI_DEM, self.resample)
-        self.vel = zoom(self.vel, self.resample)
-        self.vx = zoom(self.vx, self.resample)
-        self.vy = zoom(self.vy, self.resample)
+        self.vel_Jack = zoom(self.vel_Jack, self.resample)
+        self.vx_Jack = zoom(self.vx_Jack, self.resample)
+        self.vy_Jack = zoom(self.vy_Jack, self.resample)
         
         self.mask = np.around(zoom(self.mask, self.resample), 0)
         self.mask_Kr = np.around(zoom(self.mask_Kr, self.resample), 0)
@@ -757,7 +760,9 @@ class model():
         
     def update_tauc(self):
         self.it_products.vel_mismatch = np.maximum(np.minimum((self.it_products.vel_mod - self.it_fields.vel_mes)/self.it_fields.vel_mes, 1), -1)
-        self.it_fields.tauc_rec += self.it_products.vel_mismatch * self.it_fields.tauc_rec * self.it_parameters.tauc_scale
+        self.it_fields.tauc_rec += gauss_filter(self.it_products.vel_mismatch, 1,3) * self.it_fields.tauc_rec * self.it_parameters.tauc_scale
+        self.it_fields.tauc_rec[self.it_fields.contact_zone==1]=shift(self.it_fields.tauc_rec,self.it_products.u_mod,self.it_products.v_mod,1)[self.it_fields.contact_zone==1]
+        self.it_fields.tauc_rec[self.it_fields.ocean_mask==1]=shift(self.it_fields.tauc_rec,self.it_products.u_mod,self.it_products.v_mod,2)[self.it_fields.ocean_mask==1]
                 
     def update_nc(self):
         nc_updated = NC(self.file_locations.it_in, 'r+')
