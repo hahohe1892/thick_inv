@@ -69,7 +69,7 @@ class input_data():
         self.vy_Jack[np.isnan(self.vy_Jack)] = 0
         
         self.vel_Jack = np.zeros_like(self.x, dtype='float')
-        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]
+        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]*365*3.2
         self.vel_Jack[np.isnan(self.vel_Jack)] = 0
         
     def get_outlines(self, path):
@@ -193,9 +193,9 @@ class input_data():
         self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
 
     def get_vel_Adrian(self):
-        path = 'SV_vels_HDF.mat'
-        Adrian_vel_mat = scipy.io.loadmat(path)['SV_vels'][0,0]
-        self.vel_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[3]).flatten(), (Adrian_vel_mat[4]).flatten()), Adrian_vel_mat[0].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
+        path = 'AL_vels_HDF.mat'
+        Adrian_vel_mat = scipy.io.loadmat(path)['AL_vels_HDF'][0,0]
+        self.vel_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[2].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
         self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.itslive_vel[np.isnan(self.vel_Adrian)]
 
         
@@ -251,7 +251,14 @@ class input_data():
         
         self.itslive_vy = np.zeros_like(self.x, dtype='float')
         self.itslive_vy[:,1:] = itslive_vy
-        self.itslive_vy[self.itslive_vy<-1e30] = 0    
+        self.itslive_vy[self.itslive_vy<-1e30] = 0
+
+    def fill_in_vel(self):
+        Jack_missing = np.where(np.logical_and(self.itslive_vel>300, self.vel_Jack<30))
+        self.vel_Jack[Jack_missing]=self.itslive_vel[Jack_missing]
+
+        Adrian_missing = np.where(np.logical_and(self.vel_Jack>=300, self.vel_Adrian<30))
+        self.vel_Adrian[Adrian_missing]=self.vel_Jack[Adrian_missing]
         
     def filter_dhdt(self):
         ### filter outliers in dhdt ###
@@ -311,6 +318,8 @@ class input_data():
         self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
 
         self.get_vel_Adrian()
+
+        self.fill_in_vel()
 
         self.filter_dhdt()
 
@@ -729,7 +738,7 @@ class model():
         self.it_fields.B_rec -= self.it_parameters.beta * self.it_products.misfit
         
     def update_surface(self):
-        self.it_fields.S_rec[np.logical_and(self.it_fields.mask == 1, self.it_products.h_rec>20)] += self.it_parameters.delta_surf * self.it_products.misfit[np.logical_and(self.it_fields.mask == 1, self.it_products.h_rec>20)]
+        self.it_fields.S_rec[np.logical_and(self.it_fields.mask == 1, self.it_products.h_rec>20)] = (self.it_fields.S_rec+self.it_parameters.delta_surf * self.it_products.misfit)[np.logical_and(self.it_fields.mask == 1, self.it_products.h_rec>20)]
                                                                                                                     
     def correct_for_diffusivity(self):
         self.it_products.H_rec = self.it_fields.S_rec - self.it_fields.B_rec
@@ -759,10 +768,15 @@ class model():
         self.series.tauc_recs.append(self.it_fields.tauc_rec)
         
     def update_tauc(self):
-        self.it_products.vel_mismatch = np.maximum(np.minimum((self.it_products.vel_mod - self.it_fields.vel_mes)/self.it_fields.vel_mes, 1), -1)
-        self.it_fields.tauc_rec += gauss_filter(self.it_products.vel_mismatch, 1,3) * self.it_fields.tauc_rec * self.it_parameters.tauc_scale
+        #self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, 1), -1)
+        self.it_products.vel_mismatch = np.maximum(np.minimum(np.maximum(self.it_products.vel_mod.data,0) - self.it_fields.vel_mes,100),-100)/200
+        self.it_products.vel_mismatch[self.it_fields.mask==0]=np.nan
+        self.it_products.vel_mismatch =  gauss_filter(self.it_products.vel_mismatch, 2,4)
+        self.it_products.vel_mismatch[np.isnan(self.it_products.vel_mismatch)]=0
+        self.it_fields.tauc_rec = self.it_fields.tauc_rec+self.it_products.vel_mismatch* self.it_fields.tauc_rec * self.it_parameters.tauc_scale*np.minimum(self.it_fields.vel_mes,1)*self.it_fields.mask
         self.it_fields.tauc_rec[self.it_fields.contact_zone==1]=shift(self.it_fields.tauc_rec,self.it_products.u_mod,self.it_products.v_mod,1)[self.it_fields.contact_zone==1]
         self.it_fields.tauc_rec[self.it_fields.ocean_mask==1]=shift(self.it_fields.tauc_rec,self.it_products.u_mod,self.it_products.v_mod,2)[self.it_fields.ocean_mask==1]
+        self.it_fields.tauc_rec = np.maximum(1e4, self.it_fields.tauc_rec)
                 
     def update_nc(self):
         nc_updated = NC(self.file_locations.it_in, 'r+')
