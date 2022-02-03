@@ -84,7 +84,7 @@ def get_nc_data(file, var, time):
     else:
         var_data = ds[var][time][:]
     return var_data
-
+'''
 def shift(data, u, v, dx):
     x_shift, y_shift = np.meshgrid(range(np.shape(data)[1]), range(np.shape(data)[0]))
     uv_mag = np.ones_like(u)
@@ -98,6 +98,42 @@ def shift(data, u, v, dx):
     xi, yi = np.meshgrid(range(np.shape(data)[1]), range(np.shape(data)[0]))
 
     newgrid = griddata(points, data.flatten(), (xi.flatten(), yi.flatten())).reshape(np.shape(u))
+    return newgrid
+'''
+def shift(field, u_dat, v_dat, dx):
+    x_shift, y_shift = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
+    uv_mag = np.ones_like(field)
+    #u=np.zeros_like(field)
+    #u[np.isnan(u_dat)==False]=u_dat[np.isnan(u_dat)==False]
+    #v=np.zeros_like(field)
+    #v[np.isnan(v_dat)==False]=v_dat[np.isnan(v_dat)==False]
+    u = u_dat
+    v = v_dat
+    u[np.isnan(u)]=0
+    v[np.isnan(u)]=0
+    uv_mag = np.sqrt(u**2+v**2).data
+    #u_shift = np.maximum(0,(u/uv_mag).data)*dx
+    #v_shift = np.maximum(0,(v/uv_mag).data)*dx
+    u_shift = (u/uv_mag)*dx
+    v_shift = (v/uv_mag)*dx
+    u_shift[abs(u_shift)>1e4]=np.nan
+    v_shift[abs(v_shift)>1e4]=np.nan
+    x_shift = x_shift+u_shift
+    y_shift = y_shift+v_shift
+    field_masked=field[np.isnan(x_shift)==False]
+
+    x_shift=x_shift[np.isnan(x_shift)==False]
+    y_shift=y_shift[np.isnan(y_shift)==False]
+    
+    points=np.zeros((len(x_shift),2))
+    
+    #points = np.zeros((np.shape(x_shift)[0]*np.shape(x_shift)[1],2))
+    points[:,0] = x_shift.flatten()
+    points[:,1]=y_shift.flatten()
+    xi, yi = np.meshgrid(range(np.shape(u_dat)[1]), range(np.shape(u_dat)[0]))
+#
+    newgrid = griddata(points, field_masked.flatten(), (xi.flatten(), yi.flatten()), 'linear').reshape(np.shape(u))
+    newgrid[np.isnan(newgrid)] = field[np.isnan(newgrid)]
     return newgrid
 
 from IPython.display import display, Javascript
