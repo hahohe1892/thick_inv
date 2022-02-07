@@ -39,7 +39,10 @@ class input_data():
     
     def check_shape(self):
         check_shape(self.x, [self.dem, self.smb, self.dhdt, self.mask, self.vel_Jack, self.vx_Jack, self.vy_Jack])
-                    
+
+    def set_xy(self, matrix):
+        self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
+   
     def reset_shape(self):
         self.dem = np.zeros_like(self.x, dtype='float')
         self.NPI_DEM = np.zeros_like(self.x, dtype='float')
@@ -50,9 +53,6 @@ class input_data():
         self.vx_Jack = np.zeros_like(self.x, dtype='float')
         self.vy_Jack = np.zeros_like(self.x, dtype='float')
                 
-    def set_xy(self, matrix):
-        self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
-   
     def import_NPI_DEM(self, path):
         self.NPI_DEM_o = rasterio.open(path)
         self.window = self.NPI_DEM_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y))
@@ -124,7 +124,7 @@ class input_data():
         #self.retreat_mask[self.retreat_mask+self.mask_Kr==2]=0
         #self.retreat_mask[np.logical_and(np.isnan(self.dhdt1), np.isnan(self.dhdt0)==False)]=1
         
-        self.mask = self.mask_Ko + self.mask_Kr
+        self.mask = self.mask_Kr
         self.mask[self.mask>0] = 1
         
         #self.NPI_DEM[self.retreat_mask==1] = 0
@@ -132,6 +132,7 @@ class input_data():
     def clean_dhdt(self):
         
         self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
+        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
 
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
@@ -142,8 +143,6 @@ class input_data():
         self.ocean_mask[:10,:]=0
         self.ocean_mask[:,:10]=0
         self.ocean_mask[self.mask==1]=0
-
-        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
 
         self.dhdt0[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         self.dhdt1[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
@@ -182,7 +181,7 @@ class input_data():
         self.smb[self.smb<-2] = -2
         self.smb[self.smb>1] = 1
         
-    def get_vel_field(self, path):
+    def get_vel_stake(self, path):
         ### velocity from Jack ###
         vel_xyz_df = pd.read_excel(path, 1, header=None)
         vel_x = np.array(vel_xyz_df.loc[:,1])
@@ -190,14 +189,18 @@ class input_data():
         vel_z = np.array(vel_xyz_df.loc[:,3])
         
         vel_df = pd.read_excel (path, 0, header=None)
-        self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
+        self.vel_stake = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
 
     def get_vel_Adrian(self):
         path = 'AL_vels_HDF.mat'
         Adrian_vel_mat = scipy.io.loadmat(path)['AL_vels_HDF'][0,0]
         self.vel_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[2].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
-        self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.itslive_vel[np.isnan(self.vel_Adrian)]
+        self.vx_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[3].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
+        self.vy_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[4].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
 
+        self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.vel_Jack[np.isnan(self.vel_Adrian)]
+        self.vx_Adrian[np.isnan(self.vel_Adrian)] = self.vx_Jack[np.isnan(self.vel_Adrian)]
+        self.vy_Adrian[np.isnan(self.vel_Adrian)] = self.vy_Jack[np.isnan(self.vel_Adrian)]
         
     def resample_input(self):
         self.data_res = 50
@@ -213,6 +216,9 @@ class input_data():
         self.vel_Jack = zoom(self.vel_Jack, self.resample)
         self.vx_Jack = zoom(self.vx_Jack, self.resample)
         self.vy_Jack = zoom(self.vy_Jack, self.resample)
+        self.vel_Adrian = zoom(self.vel_Adrian, self.resample)
+        self.vx_Adrian = zoom(self.vx_Adrian, self.resample)
+        self.vy_Adrian = zoom(self.vy_Adrian, self.resample)
         
         self.mask = np.around(zoom(self.mask, self.resample), 0)
         self.mask_Kr = np.around(zoom(self.mask_Kr, self.resample), 0)
@@ -229,7 +235,7 @@ class input_data():
                     continue
                 x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
                 circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
-                self.contact_zone[np.logical_and(self.mask==1, circle)]=1
+                self.contact_zone[np.logical_and(self.mask==1, circle)]=1     
 
     def get_itslive_vel(self, paths):
         itslive_vel_o = rasterio.open(paths[0])
@@ -281,7 +287,17 @@ class input_data():
                     else:
                         dhdt_full_new[i,j] = self.dhdt[i,j]
         self.dhdt = dhdt_full_new
-        
+
+    def get_boundary(self):
+        self.boundary = np.zeros_like(self.x)
+        for i in range(np.shape(self.boundary)[1]):
+            for j in range(np.shape(self.boundary)[0]):
+                if self.mask[j,i]==1:
+                    continue
+                x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
+                circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
+                self.boundary[np.logical_and(self.mask==1, circle)]=1
+                
     def set_parameters(self, ice_temp=273, ice_density = 900., secpera = 31556926., g = 9.81):
         self.A = 1.733e3*np.exp(-13.9e4/(8.3*ice_temp))
         self.ice_density = ice_density
@@ -311,17 +327,19 @@ class input_data():
 
         self.set_smb('./kronebreen/HDF_mass_balance.xlsx')
 
-        self.get_vel_field('./kronebreen/HDF_stake_velocities.xlsx')
+        self.get_vel_stake('./kronebreen/HDF_stake_velocities.xlsx')
+
+        self.get_vel_Adrian()
 
         self.resample_input()
 
         self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
 
-        self.get_vel_Adrian()
-
         self.fill_in_vel()
 
         self.filter_dhdt()
+
+        self.get_boundary()
 
         self.set_parameters()
 
@@ -352,9 +370,11 @@ class radar_data():
         inds = np.array(df_place.index)
         bed_loc = df_place['rad']
         x_rad_sample = df_place['x_rad']
+        y_rad_sample = df_place['y_rad']
         self.mask_arr = np.zeros_like(input.x, dtype='float')
         self.bed_arr = np.zeros_like(input.x, dtype='float')
         self.x_arr = np.zeros_like(input.x, dtype='float')
+        self.y_arr = np.zeros_like(input.x, dtype='float')
         
         n = int(len(inds)/2)
         random_index = np.random.choice(len(inds), n, replace=False)  
@@ -364,6 +384,7 @@ class radar_data():
             self.mask_arr[i]=1
             self.bed_arr[i] = bed_loc[i]
             self.x_arr[i] = x_rad_sample[i]
+            self.y_arr[i] = y_rad_sample[i]
         
         
     def check_shape(self):
@@ -507,7 +528,7 @@ def create_script(forward_or_iteration, nx, ny):
     print('')
     print('CLIMATE="-surface given -surface_given_file $CLIMATEFILE"')
     print('grid="-Mx {} -My {} -Mz 50 -Mbz 1 -Lz 1500 -Lbz 1"'.format(nx, ny))
-    print('PHYS="-stress_balance ssa+sia -sia_flow_law isothermal_glen -ssa_flow_law isothermal_glen"')# -basal_resistance.beta_lateral_margin 0 -stress_balance.ssa.fd.lateral_drag.viscosity 0"')
+    print('PHYS="-stress_balance ssa+sia -sia_flow_law isothermal_glen -ssa_flow_law isothermal_glen"')# -nu_bedrock 1 -basal_resistance.beta_lateral_margin 1"')
     print('THERMAL="-energy none -calving float_kill"')
     #print('OCEAN="-dry"')
     print('CONF="-config_override kronebreen_kongsbreen_conf.nc"')
@@ -642,6 +663,7 @@ class model():
             self.B_rec = self.S_rec - self.initial_thickness           # no smoothing applied in standard initialization
             self.tauc_rec = (500+self.B_rec)*1e3
             self.tauc_rec[input.ocean_mask==1]=np.median(self.tauc_rec[input.mask==1])
+            #self.tauc_rec[np.logical_and(input.contact_zone!=1, input.boundary==1)] = 1e10
             self.dh_ref = input.dhdt
             self.mask = input.mask
             self.ocean_mask = input.ocean_mask
@@ -768,8 +790,8 @@ class model():
         self.series.tauc_recs.append(self.it_fields.tauc_rec)
         
     def update_tauc(self):
-        #self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, 1), -1)
-        self.it_products.vel_mismatch = np.maximum(np.minimum(np.maximum(self.it_products.vel_mod.data,0) - self.it_fields.vel_mes,100),-100)/200
+        self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, .5), -.5)
+        #self.it_products.vel_mismatch = np.maximum(np.minimum(np.maximum(self.it_products.vel_mod.data,0) - self.it_fields.vel_mes,100),-100)/200
         self.it_products.vel_mismatch[self.it_fields.mask==0]=np.nan
         self.it_products.vel_mismatch =  gauss_filter(self.it_products.vel_mismatch, 2,4)
         self.it_products.vel_mismatch[np.isnan(self.it_products.vel_mismatch)]=0

@@ -37,8 +37,8 @@ print('populating model')
 md = model(data)
 
 runs = [
-        {'it_parameters.p_friction': 500, 'it_fields.vel_mes': data.vel_Adrian},
-        {'it_parameters.p_friction': 500, 'it_fields.vel_mes': data.vel_Adrian, 'it_parameters.delta_surf':0.0125}
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax':5000},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Adrian, 'it_parameters.pmax':5000}
         ]
 
         
@@ -58,8 +58,8 @@ for q,run in enumerate(runs):
             save_string += string + '_'
         elif isinstance(run[string], float):
             save_string += string + '_' + '{}'.format(round(run[string], 2)) + '_'
-    if os.path.exists('./auto_ncs/KK_auto_1420_{}_{}.nc'.format(save_string, q)) or os.path.exists('./auto_data/KK_auto_1420_{}_{}.pkl'.format(save_string, q)):
-        raise ValueError('run KK_auto_1420_{}_{} already exists'.format(save_string, q))
+    if os.path.exists('./auto_ncs/Kronebreen_auto_1420_{}_{}.nc'.format(save_string, q)) or os.path.exists('./auto_data/Kronebreen_auto_1420_{}_{}.pkl'.format(save_string, q)):
+        raise ValueError('run Kronebreen_auto_1420_{}_{} already exists'.format(save_string, q))
     save_strings.append(save_string)
 
 for i,run in enumerate(runs):
@@ -82,13 +82,13 @@ for i,run in enumerate(runs):
         print('now iterating...')
         md.iterate(data)
         print('iterating done, now saving')
-        with open('./auto_data/KK_auto_1420_{}_{}.pkl'.format(save_strings[i], i), 'wb') as outp:
+        with open('./auto_data/Kronebreen_auto_1420_{}_{}.pkl'.format(save_strings[i], i), 'wb') as outp:
             pickle.dump(md, outp, pickle.HIGHEST_PROTOCOL)
-        subprocess.call(['cp', md.file_locations.it_out, './auto_ncs/KK_auto_1420_{}_{}.nc'.format(save_strings[i], i)])
+        subprocess.call(['cp', md.file_locations.it_out, './auto_ncs/Kronebreen_auto_1420_{}_{}.nc'.format(save_strings[i], i)])
         print('saving done, this was run {} out of {} runs'.format(i+1, len(runs)))
         md.__init__(data)
     except:
         print('something went wrong in iteration or during saving')
         md.warnings.append('something went wrong in iteration or during saving')
         md.__init__(data)
-        continue
+        continueGGG
