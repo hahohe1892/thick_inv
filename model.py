@@ -201,7 +201,36 @@ class input_data():
         self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.vel_Jack[np.isnan(self.vel_Adrian)]
         self.vx_Adrian[np.isnan(self.vel_Adrian)] = self.vx_Jack[np.isnan(self.vel_Adrian)]
         self.vy_Adrian[np.isnan(self.vel_Adrian)] = self.vy_Jack[np.isnan(self.vel_Adrian)]
+
+    def get_data_Millan(self):
+        thk_o = rasterio.open('./kronebreen/RGI-7_thk/THICKNESS_RGI-7.1_2021July09.tif')  
+        window_thk = (thk_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
+        self.thk_Millan_in = np.flip(thk_o.read(1, window=window_thk), axis = 0)
+
+        vel_o = rasterio.open('./kronebreen/RGI-7_vel/V_RGI-7.1_2021July01.tif')
+        window_vel = (vel_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
+        self.vel_Millan_in = np.flip(vel_o.read(1, window=window_vel), axis = 0)
+        self.vel_Millan_in[np.isnan(self.vel_Millan_in)] = 0
+        '''
+        destination = np.zeros((np.shape(self.x)[0], np.shape(self.x)[1]+3))
+        self.vel_Millan = rasterio.warp.reproject(
+            vel_in,
+            destination,
+            src_transform=vel_o.transform,
+            src_crs=vel_o.crs,
+            dst_transform=self.NPI_DEM_o.transform,
+            dst_crs=self.NPI_DEM_o.crs,
+            resampling=rasterio.warp.Resampling.nearest)[0]
         
+        self.thk_Millan = rasterio.warp.reproject(
+            thk_in,
+            destination,
+            src_transform=thk_o.transform,
+            src_crs=thk_o.crs,
+            dst_transform=self.NPI_DEM_o.transform,
+            dst_crs=self.NPI_DEM_o.crs,
+            resampling=rasterio.warp.Resampling.nearest)[0]
+        '''
     def resample_input(self):
         self.data_res = 50
         self.res = 250
@@ -219,6 +248,10 @@ class input_data():
         self.vel_Adrian = zoom(self.vel_Adrian, self.resample)
         self.vx_Adrian = zoom(self.vx_Adrian, self.resample)
         self.vy_Adrian = zoom(self.vy_Adrian, self.resample)
+        self.vel_Millan = np.zeros_like(self.NPI_DEM)
+        self.vel_Millan[:,1:] = zoom(self.vel_Millan_in, self.resample)
+        self.thk_Millan = np.zeros_like(self.NPI_DEM)
+        self.thk_Millan[:,1:] = zoom(self.thk_Millan_in, self.resample)
         
         self.mask = np.around(zoom(self.mask, self.resample), 0)
         self.mask_Kr = np.around(zoom(self.mask_Kr, self.resample), 0)
@@ -265,6 +298,9 @@ class input_data():
 
         Adrian_missing = np.where(np.logical_and(self.vel_Jack>=300, self.vel_Adrian<30))
         self.vel_Adrian[Adrian_missing]=self.vel_Jack[Adrian_missing]
+
+        Millan_missing = np.where(np.logical_and(self.vel_Jack>=500, self.vel_Millan<300))
+        self.vel_Millan[Millan_missing]=self.vel_Jack[Millan_missing]
         
     def filter_dhdt(self):
         ### filter outliers in dhdt ###
@@ -330,6 +366,8 @@ class input_data():
         self.get_vel_stake('./kronebreen/HDF_stake_velocities.xlsx')
 
         self.get_vel_Adrian()
+
+        self.get_data_Millan()
 
         self.resample_input()
 
@@ -858,7 +896,7 @@ class model():
                 self.warnings.append('run did not finish in designated max time')
                 break
             if len(self.series.stop)>1 and p==self.series.stop[-1]+1:
-                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<.3e-1:
+                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<1e-1:
                     break
                 else:
                     p+=1
