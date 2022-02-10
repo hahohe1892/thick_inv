@@ -69,7 +69,7 @@ class input_data():
         self.vy_Jack[np.isnan(self.vy_Jack)] = 0
         
         self.vel_Jack = np.zeros_like(self.x, dtype='float')
-        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]*365*3.2
+        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]*365*3.8
         self.vel_Jack[np.isnan(self.vel_Jack)] = 0
         
     def get_outlines(self, path):
@@ -683,6 +683,8 @@ class model():
             self.S_rec_all = []
             self.vel_all = []
             self.tauc_recs = []
+            self.stop = [0]
+            self.misfit_vs_iter = []
        
     class it_parameters_class:      
         def __init__(self, input):
@@ -788,6 +790,7 @@ class model():
         self.series.S_rec_all.append(self.it_fields.S_rec)
         self.series.vel_all.append(self.it_products.vel_mod)
         self.series.tauc_recs.append(self.it_fields.tauc_rec)
+        self.series.misfit_vs_iter.append(np.median(abs(self.it_products.misfit[self.it_fields.mask==1])))
         
     def update_tauc(self):
         self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, .5), -.5)
@@ -820,13 +823,19 @@ class model():
             sys.stdout = original_stdout # Reset the standard output to its original value
             f.close()
         
+    def set_stop(self, p):
+        if p > 20:
+            if np.all(abs(np.array(self.series.misfit_vs_iter[-20:]))<1e-2):
+                self.series.stop.append(p)
+            
     def iterate(self, input):
         self.smooth_SandB(input)
         self.create_it_script()
         subprocess.call(['cp', self.file_locations.init_output, self.file_locations.it_out])
         
         self.it_products.start_time = time.time()
-        for p in range(self.it_parameters.pmax):
+        p=0
+        while p < self.it_parameters.pmax:
             print(p)
             self.it_products.h_old = self.it_fields.S_rec - self.it_fields.B_rec     
             subprocess.call(['cp', self.file_locations.it_out, self.file_locations.it_in])
@@ -842,11 +851,20 @@ class model():
             self.correct_for_diffusivity()
             self.mask_fields()
             self.append_series()
-            if p>0 and p%self.it_parameters.p_friction == 0:
+            self.set_stop(p)
+            if p>0 and (p==self.series.stop[-1] or p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0):
                 self.update_tauc()
             if time.time() > self.it_products.start_time + self.it_parameters.max_time * 60 * 60:
                 self.warnings.append('run did not finish in designated max time')
                 break
+            if len(self.series.stop)>1 and p==self.series.stop[-1]+1:
+                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<.3e-1:
+                    break
+                else:
+                    p+=1
+            else:
+                p+=1
+                                                                          
 
     def restart(self, it_step):
         self.it_fields.S_rec = self.series.S_rec_all[it_step]
