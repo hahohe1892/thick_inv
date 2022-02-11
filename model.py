@@ -114,7 +114,7 @@ class input_data():
         self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
     
         self.mask_Kr = np.ones_like(self.x)
-        self.mask_Kr[np.isnan(self.dhdt0)] = 0
+        self.mask_Kr[np.isnan(self.dhdt1)] = 0
         self.mask_Kr[0:10,:]=0
 
         
@@ -124,32 +124,32 @@ class input_data():
         #self.retreat_mask[self.retreat_mask+self.mask_Kr==2]=0
         #self.retreat_mask[np.logical_and(np.isnan(self.dhdt1), np.isnan(self.dhdt0)==False)]=1
         
-        self.mask = self.mask_Kr
+        self.mask = copy(self.mask_Kr)
         self.mask[self.mask>0] = 1
         
         #self.NPI_DEM[self.retreat_mask==1] = 0
 
     def clean_dhdt(self):
         
-        self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
-        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
-
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
-        self.ocean_mask[self.NPI_DEM<90]=1
-        #self.ocean_mask[(self.dhdt1-self.dhdt0)>10]=1  #this should reflect area where the glacier has retreated
+        #self.ocean_mask[self.NPI_DEM<90]=1
+        self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
         #self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
         self.ocean_mask[:,120:-1]=0
         self.ocean_mask[:10,:]=0
         self.ocean_mask[:,:10]=0
         self.ocean_mask[self.mask==1]=0
 
+        self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
+        self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
+
         self.dhdt0[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         self.dhdt1[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
         
         self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
-        self.dem = copy(self.dhdt0)#(self.dhdt0+self.dhdt1)/2
+        self.dem = copy(self.dhdt1)#(self.dhdt0+self.dhdt1)/2
         self.dem[self.ocean_mask==1]=-100
         self.dhdt[self.ocean_mask==1]=0
 
@@ -865,6 +865,8 @@ class model():
         if p > 20:
             if np.all(abs(np.array(self.series.misfit_vs_iter[-20:]))<1e-2):
                 self.series.stop.append(p)
+            elif p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0):
+                self.series.stop.append(p)
             
     def iterate(self, input):
         self.smooth_SandB(input)
@@ -890,13 +892,13 @@ class model():
             self.mask_fields()
             self.append_series()
             self.set_stop(p)
-            if p>0 and (p==self.series.stop[-1] or p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0):
+            if p>0 and p==self.series.stop[-1]:
                 self.update_tauc()
             if time.time() > self.it_products.start_time + self.it_parameters.max_time * 60 * 60:
                 self.warnings.append('run did not finish in designated max time')
                 break
             if len(self.series.stop)>1 and p==self.series.stop[-1]+1:
-                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<1e-1:
+                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<.3e-1:
                     break
                 else:
                     p+=1
