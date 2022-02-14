@@ -114,7 +114,7 @@ class input_data():
         self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
     
         self.mask_Kr = np.ones_like(self.x)
-        self.mask_Kr[np.isnan(self.dhdt1)] = 0
+        self.mask_Kr[np.isnan(self.dhdt0)] = 0
         self.mask_Kr[0:10,:]=0
 
         
@@ -133,8 +133,8 @@ class input_data():
         
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
-        #self.ocean_mask[self.NPI_DEM<90]=1
-        self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
+        self.ocean_mask[self.NPI_DEM<90]=1
+        #self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
         #self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
         self.ocean_mask[:,120:-1]=0
         self.ocean_mask[:10,:]=0
@@ -149,7 +149,7 @@ class input_data():
         
         self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
-        self.dem = copy(self.dhdt1)#(self.dhdt0+self.dhdt1)/2
+        self.dem = copy(self.dhdt0)#(self.dhdt0+self.dhdt1)/2
         self.dem[self.ocean_mask==1]=-100
         self.dhdt[self.ocean_mask==1]=0
 
@@ -865,7 +865,7 @@ class model():
         if p > 20:
             if np.all(abs(np.array(self.series.misfit_vs_iter[-20:]))<1e-2):
                 self.series.stop.append(p)
-            elif p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0):
+            elif p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0:
                 self.series.stop.append(p)
             
     def iterate(self, input):

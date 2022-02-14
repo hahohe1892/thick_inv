@@ -37,8 +37,13 @@ print('populating model')
 md = model(data)
 
 runs = [
-        {'it_parameters.p_friction': 500, 'it_fields.vel_mes': data.vel_Millan, 'it_parameters.pmax':3000, 'it_parameters.delta_surf': 0.05},
-#        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax':4995}
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_parameters.dt': 0.01},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_parameters.dt': 0.025},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_parameters.dt': 0.05},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_fields.smb': data.smb*1.3},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_fields.smb': data.smb*0.7},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_parameters.shift': 0},
+        {'it_parameters.p_friction': 1000, 'it_fields.vel_mes': data.vel_Jack, 'it_parameters.pmax': 5000, 'it_parameters.delta_surf': 0.05}
         ]
 
         
