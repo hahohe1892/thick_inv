@@ -186,3 +186,16 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
             pass
     bk.close()
 
+def stagger(x):
+    x_stag = np.zeros_like(x)
+    x_stag[1:-1,1:-1] = 0.25*(x[1:-1,1:-1]+x[1:-1,0:-2]+x[0:-2,0:-2]+x[0:-2,1:-1])
+    return x_stag
+
+def x_deriv(x, res):
+    dxdx = np.zeros_like(x, dtype='float')
+    dxdx[0:-2,0:-2] = 0.5 * (x[1:-1,0:-2]-x[1:-1,1:-1] + x[0:-2,0:-2] - x[0:-2,1:-1])/res
+    return dxdx
+def y_deriv(y, res):
+    dydy = np.zeros_like(y, dtype='float')
+    dydy[0:-2,0:-2] = 0.5*(y[0:-2,1:-1]-y[1:-1,1:-1] + y[0:-2,0:-2] - y[1:-1,0:-2])/res
+    return dydy

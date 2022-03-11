@@ -114,7 +114,7 @@ class input_data():
         self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
     
         self.mask_Kr = np.ones_like(self.x)
-        self.mask_Kr[np.isnan(self.dhdt0)] = 0
+        self.mask_Kr[np.isnan(self.dhdt1)] = 0
         self.mask_Kr[0:10,:]=0
 
         
@@ -133,9 +133,9 @@ class input_data():
         
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
-        self.ocean_mask[self.NPI_DEM<90]=1
-        #self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
-        #self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
+        #self.ocean_mask[self.NPI_DEM<90]=1
+        self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
+        self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
         self.ocean_mask[:,120:-1]=0
         self.ocean_mask[:10,:]=0
         self.ocean_mask[:,:10]=0
@@ -149,7 +149,7 @@ class input_data():
         
         self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
-        self.dem = copy(self.dhdt0)#(self.dhdt0+self.dhdt1)/2
+        self.dem = copy(self.dhdt1)#(self.dhdt0+self.dhdt1)/2
         self.dem[self.ocean_mask==1]=-100
         self.dhdt[self.ocean_mask==1]=0
 
@@ -199,8 +199,8 @@ class input_data():
         self.vy_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[4].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
 
         self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.vel_Jack[np.isnan(self.vel_Adrian)]
-        self.vx_Adrian[np.isnan(self.vel_Adrian)] = self.vx_Jack[np.isnan(self.vel_Adrian)]
-        self.vy_Adrian[np.isnan(self.vel_Adrian)] = self.vy_Jack[np.isnan(self.vel_Adrian)]
+        self.vx_Adrian[np.isnan(self.vx_Adrian)] = self.vx_Jack[np.isnan(self.vx_Adrian)]
+        self.vy_Adrian[np.isnan(self.vy_Adrian)] = self.vy_Jack[np.isnan(self.vy_Adrian)]
 
     def get_data_Millan(self):
         thk_o = rasterio.open('./kronebreen/RGI-7_thk/THICKNESS_RGI-7.1_2021July09.tif')  
@@ -233,7 +233,7 @@ class input_data():
         '''
     def resample_input(self):
         self.data_res = 50
-        self.res = 250
+        self.res = 150
         self.resample = self.data_res/self.res
         
         self.dhdt0 = zoom(self.dhdt0, self.resample)
@@ -269,7 +269,7 @@ class input_data():
                 x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
                 circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
                 self.contact_zone[np.logical_and(self.mask==1, circle)]=1     
-
+    '''
     def get_itslive_vel(self, paths):
         itslive_vel_o = rasterio.open(paths[0])
         itslive_vx_o = rasterio.open(paths[1])
@@ -301,7 +301,7 @@ class input_data():
 
         Millan_missing = np.where(np.logical_and(self.vel_Jack>=500, self.vel_Millan<300))
         self.vel_Millan[Millan_missing]=self.vel_Jack[Millan_missing]
-        
+    '''        
     def filter_dhdt(self):
         ### filter outliers in dhdt ###
         dhdt_full_new = np.zeros_like(self.dhdt)
@@ -335,7 +335,8 @@ class input_data():
                 self.boundary[np.logical_and(self.mask==1, circle)]=1
                 
     def set_parameters(self, ice_temp=273, ice_density = 900., secpera = 31556926., g = 9.81):
-        self.A = 1.733e3*np.exp(-13.9e4/(8.3*ice_temp))
+        self.ice_temp = ice_temp
+        self.A = 1.733e3*np.exp(-13.9e4/(8.3*self.ice_temp))
         self.ice_density = ice_density
         self.secpera = secpera
         self.g = g
@@ -371,9 +372,9 @@ class input_data():
 
         self.resample_input()
 
-        self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
+        #self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
 
-        self.fill_in_vel()
+        #self.fill_in_vel()
 
         self.filter_dhdt()
 
@@ -706,7 +707,7 @@ class model():
             self.mask = input.mask
             self.ocean_mask = input.ocean_mask
             self.contact_zone = input.contact_zone
-            self.vel_mes = input.itslive_vel
+            self.vel_mes = input.vel_Jack
             self.smb = input.smb
             self.B_init = copy(self.B_rec)
             self.S_init = copy(self.S_rec)
@@ -871,6 +872,8 @@ class model():
     def iterate(self, input):
         self.smooth_SandB(input)
         self.create_it_script()
+        create_init(input)
+        launch_init(np.shape(input.x)[1],np.shape(input.x)[0])
         subprocess.call(['cp', self.file_locations.init_output, self.file_locations.it_out])
         
         self.it_products.start_time = time.time()
