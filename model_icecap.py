@@ -218,7 +218,7 @@ def create_script(forward_or_iteration, nx, ny):
     print('')
     print('CLIMATE="-surface given -surface_given_file $CLIMATEFILE"')
     print('grid="-Mx 51 -My 51 -Mz 30 -Mbz 1 -Lz 8000 -Lbz 1 -grid.recompute_longitude_and_latitude false"')
-    print('PHYS="-stress_balance ssa+sia -ssa_flow_law isothermal_glen"')
+    print('PHYS="-stress_balance ssa+sia -ssa_flow_law isothermal_glen -sia_flow_law isothermal_glen"')
     #print('PHYS="-stress_balance blatter"')
     print('THERMAL="-energy none"')
     print('CONF="-config_override icecap_conf.nc"')
@@ -349,7 +349,7 @@ class model():
             self.beta = 1
             self.shift = 0.3
             self.delta_surf = 0.02
-            self.p_friction = 1000
+            self.p_friction = list(range(1000,8000,1000))
             self.bw = 3
             self.n_cores = 4
             self.A = input_data.A
@@ -550,6 +550,7 @@ class model():
         
         self.it_products.start_time = time.time()
         p=0
+        n=0
         while p < self.it_parameters.pmax:
             print(p)
             self.it_products.h_old = self.it_fields.S_rec - self.it_fields.B_rec     
@@ -565,8 +566,10 @@ class model():
             self.interpolate_boundary()
             self.mask_fields()
             self.append_series()
-            if p>0 and p%self.it_parameters.p_friction == 0:
+            if p>0 and p%self.it_parameters.p_friction[n] == 0:
                 self.update_tauc()
+                if n<len(self.it_parameters.p_friction):
+                    n+=1
             p+=1
             if time.time() > self.it_products.start_time + self.it_parameters.max_time * 60 * 60:
                 self.warnings.append('run did not finish in designated max time')
