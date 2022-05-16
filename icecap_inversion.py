@@ -58,14 +58,22 @@ tauc = np.array(pism.basal_yield_stress_model().basal_material_yield_stress().lo
 
 B_rec = np.copy(bed)
 S_rec = np.copy(usurf)
-B_rec_all = []
-S_rec_all = []
 
-for i in range(100):
-    B_rec, S_rec = iteration(pism, B_rec, S_rec, tauc, mask, dh_ref, .1, 1, 3)
-    B_rec_all.append(B_rec)
-    S_rec_all.append(S_rec)
+B_rec_old = np.copy(bed)
+S_rec_old = np.copy(usurf)
 
+dt = .1
+beta = 1
+bw = 3
+
+for i in range(10):
+    # new (i.e. broken) implementation
+    B_rec, S_rec = iteration(pism, B_rec, S_rec, tauc, mask, dh_ref, dt, beta, bw)
+    # old implementation (i.e. write to file, initialize PISM, read from file)
+    B_rec_old, S_rec_old = iteration_old(B_rec_old, S_rec_old, tauc, mask, dh_ref, dt, beta, bw, options)
+
+
+"""
 # plot cross-section through bed and surface
 colormap = plt.cm.viridis
 colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
@@ -78,3 +86,4 @@ ax[1].set_xlabel('x-coordinate')
 ax[0].set_ylabel('recovered bed elevation [m]')
 ax[1].set_ylabel('recovered surface elevation [m]')
 fig.show()
+"""
