@@ -6,22 +6,15 @@ from matplotlib import colors as plt_colors
 import subprocess
 from netCDF4 import Dataset as NC
 
-cmd = ['cp', 'ice_build_output.nc', 'ice_build_output_mod.nc']
-subprocess.call(cmd)
-
-nc_updated = NC('ice_build_output_mod.nc', 'r+')
-nc_updated['topg'][0,:,:]=np.zeros((51, 51))
-nc_updated['thk'][0,:,:]=nc_updated['usurf'][0,:,:]
-nc_updated.close()
-
-
 options = {
     "-Mz": 30,
     "-Lz": 5000,
     #"-z_spacing": "equal",
     "-surface" : "given",
-    "-surface_given_file": "ice_build_output_mod.nc",
-    "-i": "ice_build_output_mod.nc",
+    "-atmosphere.given.file": "input.nc",
+    "-surface.given.file": "input.nc",
+    "-ocean.given.file": "input.nc",
+     "-i": "input.nc",
     "-bootstrap": "",
     "-energy": "none",
     "-sia_flow_law": "isothermal_glen",
@@ -42,48 +35,57 @@ options = {
      "constants.standard_gravity": 9.81,
      "ocean.sub_shelf_heat_flux_into_ice": 0.0,
      "stress_balance.sia.bed_smoother.range": 0.0,
-    "-o": "test.nc"
+    "-o": "test.nc",
+    "sea_level.constant.value": -1e4
 }
 
-pism = create_pism("ice_build_output_mod.nc", options)
 
-H   = np.array(pism.geometry().ice_thickness.local_part(), copy=True)
-bed = np.array(pism.geometry().bed_elevation.local_part(), copy=True)
+cmd = ['cp', 'icecap_initial_setup.nc', 'input.nc']
+subprocess.call(cmd)
 
-usurf = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
-mask = np.array(pism.geometry().cell_type.local_part(), copy=True)/2
-dh_ref = np.zeros_like(usurf)
+inversion_in = NC('input.nc', 'r+')
+inversion_in['topg'][:,:] = np.zeros((51,51))
+inversion_in.close()
+
+pism = create_pism("input.nc", options)
 
 tauc = np.array(pism.basal_yield_stress_model().basal_material_yield_stress().local_part(),copy=True)
 
-B_rec = np.copy(bed)
-S_rec = np.copy(usurf)
+dh_ref = np.zeros_like(tauc)
+B_rec = np.zeros((55,55))
+S_rec = np.zeros_like(B_rec)
+S_rec[2:-2,2:-2] = get_nc_data('ice_build_output.nc', 'usurf', 0)
 
-B_rec_old = np.copy(bed)
-S_rec_old = np.copy(usurf)
+mask = np.zeros_like(B_rec)
+mask[2:-2,2:-2] = get_nc_data('ice_build_output.nc', 'mask', 0)
+
+B_rec_old = np.copy(B_rec)
+S_rec_old = np.copy(S_rec)
 
 dt = .1
 beta = 1
 bw = 3
 
-for i in range(10):
+B_rec_all = []
+B_rec_old_all = []
+
+for i in range(100):
     # new (i.e. broken) implementation
     B_rec, S_rec = iteration(pism, B_rec, S_rec, tauc, mask, dh_ref, dt, beta, bw)
     # old implementation (i.e. write to file, initialize PISM, read from file)
     B_rec_old, S_rec_old = iteration_old(B_rec_old, S_rec_old, tauc, mask, dh_ref, dt, beta, bw, options)
+    B_rec_all.append(np.copy(B_rec))
+    B_rec_old_all.append(np.copy(B_rec_old))
 
-
-"""
 # plot cross-section through bed and surface
 colormap = plt.cm.viridis
 colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
 fig, ax = plt.subplots(1,2, figsize=(15,4))
 for i in range(len(B_rec_all)):
     lines = ax[0].plot(range(B_rec_all[i].shape[0]), B_rec_all[i][21,:], color = colors[i])
-    lines1 = ax[1].plot(range(S_rec_all[i].shape[0]), S_rec_all[i][21,:], color = colors[i])
+    lines1 = ax[1].plot(range(B_rec_old_all[i].shape[0]), B_rec_old_all[i][21,:], color = colors[i])
 ax[0].set_xlabel('x-coordinate')
 ax[1].set_xlabel('x-coordinate')
-ax[0].set_ylabel('recovered bed elevation [m]')
-ax[1].set_ylabel('recovered surface elevation [m]')
+ax[0].set_ylabel('recovered bed elevation without reinitialization[m]')
+ax[1].set_ylabel('recovered surface elevation with reinitialization[m]')
 fig.show()
-"""

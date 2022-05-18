@@ -61,13 +61,13 @@ def run_pism(pism, dt_years, bed_elevation, ice_thickness, yield_stress):
 
     # bed deformation models are in charge of bed elevation
     pism.bed_deformation_model().bed_elevation().local_part()[:] = bed_elevation
-
+    
     # we also need to update this copy of bed elevation (for consistency)
     pism.geometry().bed_elevation.local_part()[:] = bed_elevation
-
+    
     # pism.geometry() stores ice thickness
     pism.geometry().ice_thickness.local_part()[:] = ice_thickness
-
+    
     H_min = ctx.config.get_number("geometry.ice_free_thickness_standard")
     pism.geometry().ensure_consistency(H_min)
 
@@ -108,59 +108,49 @@ def run_pism(pism, dt_years, bed_elevation, ice_thickness, yield_stress):
     return (H, mask, u_surface, v_surface, tauc)
 
 def iteration_old(bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw, options):
-
+    
     h_old = usurf - bed
 
-    nc_updated = NC('test.nc', 'r+')
-    nc_updated['topg'][0,:,:] = bed[2:-2,2:-2]
-    nc_updated['thk'][0,:,:] = h_old[2:-2,2:-2]
-    nc_updated.close()
+    model = create_pism('input.nc', options)
+    
+    (thk_mod, mask_iter, u_rec, v_rec, tauc) = run_pism(model, dt, bed, h_old, yield_stress)
 
-    model = create_pism('test.nc', options)
-
-    (dummy, dummy1, dummy2, dummy3, dummy4) = run_pism(model, dt, bed, h_old, yield_stress)
-    model.save_results()
-
-    h_rec = np.copy(h_old)
-    h_rec[2:-2,2:-2] = get_nc_data('test.nc', 'thk', 0)
-    dh_rec = (h_rec - h_old)/dt
+    dh_rec = (thk_mod - h_old)/dt
     
     misfit = dh_rec - dh_ref        
 
-    bed -= beta * misfit
-    usurf += beta * 0.01 * misfit
+    B_rec = bed - beta * misfit
+    S_rec = usurf #+ beta * 0.01 * misfit
 
     ### buffer ###
-    mask_iter = np.zeros_like(mask)
-    mask_iter[2:-2,2:-2] = get_nc_data('test.nc', 'mask', 0)/2 
     k = np.ones((bw, bw))
     buffer = ndimage.convolve(mask_iter, k)/(bw)**2 
     criterion = np.logical_and(np.logical_and(buffer > 0, buffer != 1), mask==1)
-    bed[criterion] = 0
+    B_rec[criterion] = 0
     ### buffer end ###
 
-    bed[mask==0] = usurf[mask==0]
-    usurf[mask==0] = usurf[mask==0]
-    bed[bed>usurf] = bed[bed>usurf]
+    B_rec[mask==0] = bed[mask==0]
+    S_rec[mask==0] = usurf[mask==0]
+    B_rec[B_rec>S_rec] = S_rec[B_rec>S_rec]
 
-    return bed, usurf
+    return B_rec, S_rec
     
 def iteration(model, bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw):
         
-    thickness = usurf - bed
-    
+    h_old = usurf - bed
+
     # run PISM forward for dt years
-    (thk_mod, mask_iter, u_rec, v_rec, tauc) = run_pism(model, dt, bed, thickness, yield_stress)
+    (h_rec, mask_iter, u_rec, v_rec, tauc) = run_pism(model, dt, bed, h_old, yield_stress)
 
     # calculate modelled dh/dt
-    dh_rec = (thk_mod - thickness)/dt
+    dh_rec = (h_rec - h_old)/dt
     
     # calculate dh/dt misfit and shift it
     misfit = dh_rec - dh_ref
     
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
-    S_rec = usurf + beta * 0.01 * misfit
+    S_rec = usurf #+ beta * 0.01 * misfit
     
     # interpolate around ice margin
     k = np.ones((bw, bw))
