@@ -3,6 +3,7 @@ import PISM
 import numpy as np
 from scipy import ndimage
 from netCDF4 import Dataset as NC
+from funcs import *
 
 def get_nc_data(file, var, time):
     ds = NC(file)
@@ -135,22 +136,23 @@ def iteration_old(bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw, options)
 
     return B_rec, S_rec
     
-def iteration(model, bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw):
+def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction):
         
     h_old = usurf - bed
 
     # run PISM forward for dt years
-    (h_rec, mask_iter, u_rec, v_rec, tauc) = run_pism(model, dt, bed, h_old, yield_stress)
+    (h_rec, mask_iter, u_rec, v_rec, tauc_rec) = run_pism(model, dt, bed, h_old, yield_stress)
 
     # calculate modelled dh/dt
     dh_rec = (h_rec - h_old)/dt
     
     # calculate dh/dt misfit and shift it
     misfit = dh_rec - dh_ref
+    misfit = shift(misfit, u_rec, v_rec, mask, .3)
     
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
-    S_rec = usurf #+ beta * 0.01 * misfit
+    S_rec = usurf + beta * 0.03 * misfit
     
     # interpolate around ice margin
     k = np.ones((bw, bw))
@@ -162,8 +164,17 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw):
     B_rec[mask==0] = bed[mask==0]
     S_rec[mask==0] = usurf[mask==0]
     B_rec[B_rec>S_rec] = S_rec[B_rec>S_rec]
+
+    if update_friction == 'yes':   
+
+        vel_rec = np.sqrt(u_rec**2+v_rec**2)
+        vel_mismatch = np.maximum(np.minimum((vel_rec - vel_ref)/vel_ref, 0.5), -0.5)
+        vel_mismatch[mask==0]=np.nan
+        vel_mismatch =  gauss_filter(vel_mismatch, .6,2)
+        vel_mismatch[np.isnan(vel_mismatch)]=0
+        tauc_rec += vel_mismatch * tauc_rec  
     
-    return B_rec, S_rec
+    return B_rec, S_rec, tauc_rec, misfit
 
 if __name__ == "__main__":
     input_file = PISM.OptionString("-i", "input file name")

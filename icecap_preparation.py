@@ -14,37 +14,40 @@ if __name__ == '__main__':
     
     setup = set_topography()
     write_setup_to_nc(setup, setup_file)
-    
     options = {
         "-Mz": 30,
         "-Lz": 5000,
-        "-Lbz": 1,
         #"-z_spacing": "equal",
         "-surface" : "given",
-        "-surface_given_file": setup_file,
-        "-i": setup_file,
+        "-atmosphere.given.file": "input.nc",
+        "-surface.given.file": "input.nc",
+        "-ocean.given.file": "input.nc",
+         "-i": "input.nc",
         "-bootstrap": "",
         "-energy": "none",
         "-sia_flow_law": "isothermal_glen",
         "-ssa_flow_law": "isothermal_glen",
         "-stress_balance": "ssa+sia",
+        "-yield_stress": "constant",
         "-pseudo_plastic": "",
         "-pseudo_plastic_q": 0.333333,
         "-pseudo_plastic_uthreshold": 3.1556926e7,
         "-yield_stress": "constant",
-        "-o": output_file,
         "geometry.update.use_basal_melt_rate": "no",
          "stress_balance.ssa.compute_surface_gradient_inward": "no",
          "flow_law.isothermal_Glen.ice_softness": 1.2597213016951452e-24,
          "constants.ice.density": 900.,
-         "constants.sea_water.density": 1000.,
+       "constants.sea_water.density": 1000.,
          "bootstrapping.defaults.geothermal_flux": 0.0,
          "stress_balance.ssa.Glen_exponent": 3.,
          "constants.standard_gravity": 9.81,
          "ocean.sub_shelf_heat_flux_into_ice": 0.0,
-         "stress_balance.sia.bed_smoother.range": 0.0
+         "stress_balance.sia.bed_smoother.range": 0.0,
+        "sea_level.constant.value": -1e4,
+        "-bed_def": "iso",
+        "-bed_deformation.mantel_density": 1e20
     }
-
+    
     model = create_pism(setup_file, options)
 
     topg_with_ghosts = model.bed_deformation_model().bed_elevation().local_part()[:]

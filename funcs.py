@@ -1,4 +1,3 @@
-### inpaint_nans function from matlab ported to Python ###
 import scipy.sparse as sps
 from scipy.sparse import linalg
 import numpy as np
@@ -6,6 +5,7 @@ from numpy import matlib
 from copy import copy
 from netCDF4 import Dataset as NC
 from scipy.interpolate import griddata
+from scipy import ndimage
 
 def identify_neighbors(n,m, nan_list, talks_to):
     nan_count = np.shape(nan_list)[0]
@@ -100,41 +100,48 @@ def shift(data, u, v, dx):
     newgrid = griddata(points, data.flatten(), (xi.flatten(), yi.flatten())).reshape(np.shape(u))
     return newgrid
 '''
-def shift(field, u_dat, v_dat, dx):
+def shift(field, u_dat, v_dat, mask, dx):
     x_shift, y_shift = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
-    uv_mag = np.ones_like(field)
-    #u=np.zeros_like(field)
-    #u[np.isnan(u_dat)==False]=u_dat[np.isnan(u_dat)==False]
-    #v=np.zeros_like(field)
-    #v[np.isnan(v_dat)==False]=v_dat[np.isnan(v_dat)==False]
     u = u_dat
     v = v_dat
-    u[np.isnan(u)]=0
-    v[np.isnan(u)]=0
-    uv_mag = np.sqrt(u**2+v**2).data
-    #u_shift = np.maximum(0,(u/uv_mag).data)*dx
-    #v_shift = np.maximum(0,(v/uv_mag).data)*dx
-    u_shift = (u/uv_mag)*dx
-    v_shift = (v/uv_mag)*dx
-    u_shift[abs(u_shift)>1e4]=np.nan
-    v_shift[abs(v_shift)>1e4]=np.nan
+    uv_mag = np.zeros_like(u)+mask
+    uv_mag *= np.sqrt(u**2+v**2)
+    u_shift = np.zeros_like(u)
+    v_shift = np.zeros_like(v)
+    u_shift[uv_mag>0] = (u[uv_mag>0]/uv_mag[uv_mag>0])*dx
+    v_shift[uv_mag>0] = (v[uv_mag>0]/uv_mag[uv_mag>0])*dx
     x_shift = x_shift+u_shift
     y_shift = y_shift+v_shift
-    field_masked=field[np.isnan(x_shift)==False]
+    field_masked=field
 
-    x_shift=x_shift[np.isnan(x_shift)==False]
-    y_shift=y_shift[np.isnan(y_shift)==False]
+    #x_shift=x_shift
+    #y_shift=y_shift
     
-    points=np.zeros((len(x_shift),2))
+    points=np.zeros((len(x_shift.flatten()),2))
     
     #points = np.zeros((np.shape(x_shift)[0]*np.shape(x_shift)[1],2))
     points[:,0] = x_shift.flatten()
     points[:,1]=y_shift.flatten()
-    xi, yi = np.meshgrid(range(np.shape(u_dat)[1]), range(np.shape(u_dat)[0]))
-#
+    xi, yi = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
+
     newgrid = griddata(points, field_masked.flatten(), (xi.flatten(), yi.flatten()), 'linear').reshape(np.shape(u))
-    newgrid[np.isnan(newgrid)] = field[np.isnan(newgrid)]
-    return newgrid
+    outgrid = np.copy(field)
+    outgrid[4:-4,4:-4] = newgrid[4:-4,4:-4]
+    #newgrid[np.isnan(newgrid)] = field[np.isnan(newgrid)]
+    return outgrid
+
+def gauss_filter(U, sigma, truncate):
+
+    V=U.copy()
+    V[np.isnan(U)]=0
+    VV=ndimage.gaussian_filter(V,sigma=sigma,truncate=truncate)
+
+    W=0*U.copy()+1
+    W[np.isnan(U)]=0
+    WW=ndimage.gaussian_filter(W,sigma=sigma,truncate=truncate)
+
+    Z=VV/WW
+    return Z
 
 from IPython.display import display, Javascript
 import time

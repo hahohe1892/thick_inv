@@ -60,7 +60,8 @@ def set_topography():
     thk = np.ones((ny,nx))
     surf = topg+thk
     tauc = np.ones_like(topg)*1e10
-    setup = {'topg': topg, 'tauc': tauc, 'ice_surface_temp': ice_surface_temp, 'smb': smb, 'thk': thk, 'x': x, 'y': y}
+    mask = np.zeros_like(topg)
+    setup = {'topg': topg, 'usurf': surf, 'mask': mask, 'tauc': tauc, 'velsurf_mag': np.zeros_like(topg), 'ice_surface_temp': ice_surface_temp, 'smb': smb, 'thk': thk, 'x': x, 'y': y}
 
     return setup
     
@@ -104,6 +105,21 @@ def write_setup_to_nc(setup, output_file):
                  'yield stress',
                  None,
                  setup['tauc']],
+        'mask': ['',
+                 'ice-type (ice-free/grounded/floating/ocean) integer mask',
+                 'mask',
+                 None,
+                 setup['mask']],
+        'usurf': ['m',
+                 'ice top surface elevation',
+                 'surface_altitude',
+                 None,
+                  setup['usurf']],
+        'velsurf_mag': ['m year-1',
+                        'magnitude of horizontal velocity of ice at ice surface',
+                        'surface velocity',
+                        None,
+                        setup['velsurf_mag']]
         }
     
     ncfile = NC(output_file, 'w', format='NETCDF3_CLASSIC')
