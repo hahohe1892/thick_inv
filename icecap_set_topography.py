@@ -59,7 +59,6 @@ def set_topography():
 
     thk = np.ones((ny,nx))
     surf = topg+thk
-    tauc = np.ones_like(topg)*1e10
     mask = np.zeros_like(topg)
     setup = {'topg': topg, 'usurf': surf, 'mask': mask, 'tauc': tauc, 'velsurf_mag': np.zeros_like(topg), 'ice_surface_temp': ice_surface_temp, 'smb': smb, 'thk': thk, 'x': x, 'y': y}
 

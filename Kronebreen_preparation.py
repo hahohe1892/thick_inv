@@ -1,16 +1,16 @@
 import numpy as np
 from bed_inversion import *
-from icecap_set_topography import *
+from Kronebreen_set_topography import *
 import PISM
 import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     
     ctx = PISM.Context()
-    dt = 10000
+    dt = .1
     
-    setup_file = "icecap_initial_setup.nc"
-    output_file = "ice_build_output.nc"
+    setup_file = "Kronebreen_initial_setup.nc"
+    output_file = "Kronebreen_build_output.nc"
     
     setup = set_topography()
     write_setup_to_nc(setup, setup_file)
@@ -33,20 +33,21 @@ if __name__ == '__main__':
         "-pseudo_plastic_q": 0.333333,
         "-pseudo_plastic_uthreshold": 3.1556926e7,
         "-yield_stress": "constant",
-        "-geometry.update.use_basal_melt_rate": "no",
-        "-stress_balance.ssa.compute_surface_gradient_inward": "no",
-        "-flow_law.isothermal_Glen.ice_softness": 1.2597213016951452e-24,
-        "-constants.ice.density": 900.,
-        "-constants.sea_water.density": 1000.,
-        "-bootstrapping.defaults.geothermal_flux": 0.0,
-        "-stress_balance.ssa.Glen_exponent": 3.,
-        "-constants.standard_gravity": 9.81,
-        "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
-        "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-sea_level.constant.value": -1e4,
+        "geometry.update.use_basal_melt_rate": "no",
+         "stress_balance.ssa.compute_surface_gradient_inward": "no",
+         "flow_law.isothermal_Glen.ice_softness": 1.2597213016951452e-24,
+         "constants.ice.density": 900.,
+       "constants.sea_water.density": 1000.,
+         "bootstrapping.defaults.geothermal_flux": 0.0,
+         "stress_balance.ssa.Glen_exponent": 3.,
+         "constants.standard_gravity": 9.81,
+         "ocean.sub_shelf_heat_flux_into_ice": 0.0,
+         "stress_balance.sia.bed_smoother.range": 0.0,
+        "sea_level.constant.value": -1e4,
         "-bed_def": "iso",
-        "-bed_deformation.mantle_density": 1e20,
-        "-o": output_file
+        "bed_deformation.mantle_density": 1e20,
+        "-o": output_file,
+        "output.size": "big"
     }
     
     model = create_pism(setup_file, options)

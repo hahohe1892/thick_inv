@@ -193,3 +193,36 @@ def save_and_commit(notebook_path, branch_name, nc_file, commit_message):
             pass
     bk.close()
 
+
+def stagger(x):
+    x_stag = np.zeros_like(x)
+    x_stag[1:-1,1:-1] = 0.25*(x[1:-1,1:-1]+x[1:-1,0:-2]+x[0:-2,0:-2]+x[0:-2,1:-1])
+    return x_stag
+
+def x_deriv(x, res):
+    dxdx = np.zeros_like(x, dtype='float')
+    dxdx[0:-2,0:-2] = 0.5 * (x[1:-1,0:-2]-x[1:-1,1:-1] + x[0:-2,0:-2] - x[0:-2,1:-1])/res
+    return dxdx
+def y_deriv(y, res):
+    dydy = np.zeros_like(y, dtype='float')
+    dydy[0:-2,0:-2] = 0.5*(y[0:-2,1:-1]-y[1:-1,1:-1] + y[0:-2,0:-2] - y[1:-1,0:-2])/res
+    return dydy
+
+def calc_slope(field, res):
+    field_stag = stagger(field)
+    dhdx = x_deriv(field_stag, res)
+    dhdy = y_deriv(field_stag, res)
+    slope = np.sqrt(dhdx**2 + dhdy**2)
+
+    return slope
+
+def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_density=900, R=0.12):
+    H = surf - bed
+    slope = calc_slope(surf, res)
+    secpera = 31556926.
+    T = (2*A*(g*ice_density)**3)/5
+    max_allowed_thk = ((((dt/max_steps_PISM)*secpera/(res**2)/R)**(-1))/(T*slope**2))**(1/5)
+    H_rec = np.minimum(H, max_allowed_thk)
+    bed = surf - H_rec
+    
+    return bed
