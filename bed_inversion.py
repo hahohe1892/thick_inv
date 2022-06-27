@@ -5,17 +5,40 @@ from scipy import ndimage
 from netCDF4 import Dataset as NC
 from funcs import *
 
-def get_nc_data(file, var, time):
-    ds = NC(file)
-    avail_vars = [nc_var for nc_var in ds.variables]
-    if var not in avail_vars:
-        raise ValueError('variable not found; must be in {}'.format(avail_vars))
-    else:
-        var_data = ds[var][time][:]
-    ds.close()
-    return var_data
-
 ctx = PISM.Context()
+
+def read_variable(grid, filename, variable_name, units=None):
+    """Read a 2D array `variable_name` from a NetCDF file `filename` and
+    return its 'local' part (the part owned by a particular MPI rank),
+    including ghosts.
+
+    Uses the last time record found in `filename` and converts into
+    units specified by `units`.
+
+    """
+    # stencil width has to match the one used by PISM
+    stencil_width = 2
+
+    # allocate storage
+    array = PISM.IceModelVec2S(grid, variable_name,
+                               PISM.WITH_GHOSTS, stencil_width)
+
+    if units is not None:
+        # array.regrid() will automatically convert to these units
+        array.metadata().set_string("units", units)
+
+    # read from `filename` using bilinear interpolation (if necessary)
+    #
+    # uses the last time record found in the file
+    #
+    # PISM.CRITICAL means "stop with an error message if not found"
+    #
+    # the default value is not used
+    array.regrid(filename, PISM.CRITICAL, default_value=0.0)
+
+    # return a copy to make sure that the caller owns it (array
+    # allocated here will go out of scope and may get de-allocated)
+    return np.array(array.local_part(), copy=True)
 
 def create_pism(input_file, options):
     """Allocate and initialize PISM, using bed topography 'topg' in the
@@ -113,70 +136,6 @@ def run_pism(pism, dt_years, bed_elevation, ice_thickness, yield_stress):
 
     return (H, mask, u_surface, v_surface, tauc)
 
-def iteration_old(bed, usurf, yield_stress, mask, dh_ref, dt, beta, bw, options):
-    
-    h_old = usurf - bed
-
-    model = create_pism('input.nc', options)
-    
-    (thk_mod, mask_iter, u_rec, v_rec, tauc) = run_pism(model, dt, bed, h_old, yield_stress)
-
-    dh_rec = (thk_mod - h_old)/dt
-    
-    misfit = dh_rec - dh_ref        
-
-    B_rec = bed - beta * misfit
-    S_rec = usurf #+ beta * 0.01 * misfit
-
-    ### buffer ###
-    k = np.ones((bw, bw))
-    buffer = ndimage.convolve(mask_iter, k)/(bw)**2 
-    criterion = np.logical_and(np.logical_and(buffer > 0, buffer != 1), mask==1)
-    B_rec[criterion] = 0
-    ### buffer end ###
-
-    B_rec[mask==0] = bed[mask==0]
-    S_rec[mask==0] = usurf[mask==0]
-    B_rec[B_rec>S_rec] = S_rec[B_rec>S_rec]
-
-    return B_rec, S_rec
-"""
-def shift(field, u_dat, v_dat, dx):
-    x_shift, y_shift = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
-    uv_mag = np.ones_like(field)
-    #u=np.zeros_like(field)
-    #u[np.isnan(u_dat)==False]=u_dat[np.isnan(u_dat)==False]
-    #v=np.zeros_like(field)
-    #v[np.isnan(v_dat)==False]=v_dat[np.isnan(v_dat)==False]
-    u = u_dat
-    v = v_dat
-    u[np.isnan(u)]=0
-    v[np.isnan(u)]=0
-    uv_mag = np.sqrt(u**2+v**2).data
-    #u_shift = np.maximum(0,(u/uv_mag).data)*dx
-    #v_shift = np.maximum(0,(v/uv_mag).data)*dx
-    u_shift = (u/uv_mag)*dx
-    v_shift = (v/uv_mag)*dx
-    u_shift[abs(u_shift)>1e4]=np.nan
-    v_shift[abs(v_shift)>1e4]=np.nan
-    x_shift = x_shift+u_shift
-    y_shift = y_shift+v_shift
-    field_masked=field[np.isnan(x_shift)==False]
-
-    x_shift=x_shift[np.isnan(x_shift)==False]
-    y_shift=y_shift[np.isnan(y_shift)==False]
-    
-    points=np.zeros((len(x_shift),2))
-    
-    #points = np.zeros((np.shape(x_shift)[0]*np.shape(x_shift)[1],2))
-    points[:,0] = x_shift.flatten()
-    points[:,1]=y_shift.flatten()
-    xi, yi = np.meshgrid(range(np.shape(u_dat)[1]), range(np.shape(u_dat)[0]))
-#
-    newgrid = griddata(points, field_masked.flatten(), (xi.flatten(), yi.flatten()), 'linear').reshape(np.shape(u))
-    newgrid[np.isnan(newgrid)] = field[np.isnan(newgrid)]
-    return newgrid
-"""
 def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
         
     h_old = usurf - bed
@@ -194,35 +153,41 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
     S_rec = usurf + beta * 0.025 * misfit
-    
     # interpolate around ice margin
     if bw > 0:
         k = np.ones((bw, bw))
         buffer = ndimage.convolve(mask_iter, k)/(bw)**2 
         criterion = np.logical_and(np.logical_and(buffer > 0, buffer != 2), mask == 1)
         B_rec[criterion]=0
+        S_rec[criterion]=usurf[criterion]
 
     # correct bed in locations where a large diffusivity would cause pism to take many internal time steps
     if correct_diffusivity == 'yes':
-        B_rec = correct_high_diffusivity(S_rec, B_rec, dt, max_steps_PISM, res, A)
+        B_rec = correct_high_diffusivity(S_rec, B_rec, mask, dt, max_steps_PISM, res, A)
     
     # mask out 
     B_rec[mask==0] = bed[mask==0]
     S_rec[mask==0] = usurf[mask==0]
 
     if treat_ocean_boundary == 'yes':
-        B_rec[contact_zone==1] = shift(B_rec, u_rec, v_rec,  1)[contact_zone==1]
-        B_rec[ocean_mask==1] = shift(B_rec, u_rec, v_rec,  2)[ocean_mask==1]
-    B_rec[B_rec>S_rec] = S_rec[B_rec>S_rec]
+        B_rec[contact_zone==1] = shift(B_rec, u_rec, v_rec, mask,  1)[contact_zone==1]
+        B_rec[ocean_mask==1] = shift(B_rec, u_rec, v_rec,  mask, 2)[ocean_mask==1]
+    B_rec = np.minimum(B_rec, S_rec)
 
     if update_friction == 'yes':   
 
         vel_rec = np.sqrt(u_rec**2+v_rec**2)
-        vel_mismatch = np.maximum(np.minimum((vel_rec - vel_ref)/vel_ref, 0.5), -0.5)
-        vel_mismatch[mask==0]=np.nan
-        vel_mismatch =  gauss_filter(vel_mismatch, .6,2)
-        vel_mismatch[np.isnan(vel_mismatch)]=0
-        tauc_rec += vel_mismatch * tauc_rec  
+        vel_mismatch = np.maximum(np.minimum((vel_rec - vel_ref)/vel_ref, 0.9), -0.9)
+        #vel_mismatch[mask==0]=np.nan
+        #vel_mismatch =  gauss_filter(vel_mismatch, .6,2)
+        #vel_mismatch[np.isnan(vel_mismatch)]=0
+        tauc_rec += vel_mismatch * tauc_rec
+        #true_tauc = np.ones_like(tauc_rec)*5e7
+        #for i in range(true_tauc.shape[0]):
+        #    for j in range(true_tauc.shape[1]):
+        #        if j<=24:
+        #            true_tauc[i,j] -= 4e7
+        #tauc_rec[criterion] = true_tauc[criterion]
     
     return B_rec, S_rec, tauc_rec, misfit
 

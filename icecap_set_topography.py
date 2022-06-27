@@ -54,7 +54,7 @@ def set_topography():
     for i in range(0,nx):
         for j in range(0, ny):
             if j<=24:
-                tauc[i,j] -= 4e7*np.exp((-(x[i])**2)/(2*10000**2))
+                tauc[i,j] -= 4.25e7#*np.exp((-(x[i])**2)/(2*10000**2))
             dist = ((x[i])**2+(y[j]-15000)**2)**0.5
 
     thk = np.ones((ny,nx))

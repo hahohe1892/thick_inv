@@ -36,11 +36,12 @@ options = {
     "-constants.standard_gravity": 9.81,
     "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
     "-stress_balance.sia.bed_smoother.range": 0.0,
-    "-o": "test.nc",
+    "-o": "icecap_output.nc",
     "-sea_level.constant.value": -1e4,
     "-time_stepping.assume_bed_elevation_changed": "true"
 }
 
+true_bed = get_nc_data('ice_build_output.nc', 'topg', 0)
 
 cmd = ['cp', 'icecap_initial_setup.nc', 'input.nc']
 subprocess.call(cmd)
@@ -72,8 +73,8 @@ S_rec_old = np.copy(S_rec)
 dt = .1
 beta = 1
 bw = 5
-pmax = 1000
-p_friction = 500
+pmax = 8000
+p_friction = 1000
 max_steps_PISM = 20
 res = 1000
 A = 1.2597213016951452e-24
@@ -101,20 +102,19 @@ for p in range(pmax):
                                                treat_ocean_boundary = 'no',
                                                correct_diffusivity = 'no')
          
-        #B_rec, S_rec, tauc_rec, misfit = iteration(pism, B_rec, S_rec, tauc_rec, mask, dh_ref, vel_ref, dt, beta, bw, update_friction)
     B_rec_all.append(np.copy(B_rec))
     misfit_all.append(misfit)
 
 pism.save_results()
 dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
+B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
 
-"""
 colormap = plt.cm.viridis
 colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
 
 fig, ax = plt.subplots(1,3, figsize=(15,4))
 for i in range(len(B_rec_all)):
-    lines = ax[0].plot(range(B_rec_all[i].shape[0]), B_rec_all[i][21,:], color = colors[i])
+    lines = ax[0].plot(range(B_rec_all[i].shape[0]), B_rec_all[i][27,:], color = colors[i])
 
 field = ax[1].pcolor(B_rec)
 fig.colorbar(field, ax = ax[1])
@@ -123,4 +123,3 @@ lines1 = ax[2].plot(dh_misfit_vs_iter)
 ax[0].set_xlabel('x-coordinate')
 ax[0].set_ylabel('recovered bed elevation[m]')
 plt.show()
-"""

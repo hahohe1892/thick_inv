@@ -44,35 +44,17 @@ subprocess.call(cmd)
 
 pism = create_pism("Kronebreen_input.nc", options)
 
-# retrieve rank information
-build_output = NC('Kronebreen_build_output.nc')
-rank = build_output['rank'][:]
-build_output.close()
-
-num_processes = np.unique(rank)
-rank_indices = []
-for process in num_processes:
-    rank_indices.append(np.where(rank==process))
+dh_ref = read_variable( pism.grid(), "Kronebreen_input.nc", 'dhdt', 'm year-1')
+mask = read_variable( pism.grid(), "Kronebreen_input.nc", 'mask', '')
+vel_ref = read_variable( pism.grid(), "Kronebreen_input.nc", 'velsurf_mag', 'm year-1')
+contact_zone = read_variable( pism.grid(), "Kronebreen_input.nc", 'contact_zone', '')
+ocean_mask = read_variable( pism.grid(), "Kronebreen_input.nc", 'ocean_mask', '')
     
 tauc_rec = np.array(pism.basal_yield_stress_model().basal_material_yield_stress().local_part(),copy=True)
 
 B_rec = np.array(pism.geometry().bed_elevation.local_part(), copy=True)
 S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
 
-dh_ref = np.zeros_like(B_rec)
-mask = np.zeros_like(B_rec)
-vel_ref = np.zeros_like(B_rec)
-contact_zone = np.zeros_like(B_rec)
-ocean_mask = np.zeros_like(B_rec)
-
-setup = NC('Kronebreen_input.nc')
-dh_ref[2:-2,2:-2] = setup['dhdt'][:] ##FIXME
-mask[2:-2,2:-2] = setup['mask'][:] ##FIXME
-vel_ref[2:-2,2:-2] = setup['velsurf_mag'][:] ##FIXME
-contact_zone[2:-2,2:-2] = setup['contact_zone'][:] ##FIXME
-ocean_mask[2:-2,2:-2] = setup['ocean_mask'][:]##FIXME
-setup.close()
-    
 # set inversion paramters
 dt = .1
 beta = .5

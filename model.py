@@ -39,7 +39,10 @@ class input_data():
     
     def check_shape(self):
         check_shape(self.x, [self.dem, self.smb, self.dhdt, self.mask, self.vel_Jack, self.vx_Jack, self.vy_Jack])
-                    
+
+    def set_xy(self, matrix):
+        self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
+   
     def reset_shape(self):
         self.dem = np.zeros_like(self.x, dtype='float')
         self.NPI_DEM = np.zeros_like(self.x, dtype='float')
@@ -50,9 +53,6 @@ class input_data():
         self.vx_Jack = np.zeros_like(self.x, dtype='float')
         self.vy_Jack = np.zeros_like(self.x, dtype='float')
                 
-    def set_xy(self, matrix):
-        self.x, self.y = np.meshgrid(matrix[0],np.arange(np.min(matrix[1]), np.max(matrix[1])+10050, 50))
-   
     def import_NPI_DEM(self, path):
         self.NPI_DEM_o = rasterio.open(path)
         self.window = self.NPI_DEM_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y))
@@ -69,7 +69,7 @@ class input_data():
         self.vy_Jack[np.isnan(self.vy_Jack)] = 0
         
         self.vel_Jack = np.zeros_like(self.x, dtype='float')
-        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]*365*3.2
+        self.vel_Jack[:np.shape(self.x)[0]-int(10000/50),:] = matrix[8]*365*3.8
         self.vel_Jack[np.isnan(self.vel_Jack)] = 0
         
     def get_outlines(self, path):
@@ -114,7 +114,7 @@ class input_data():
         self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
     
         self.mask_Kr = np.ones_like(self.x)
-        self.mask_Kr[np.isnan(self.dhdt0)] = 0
+        self.mask_Kr[np.isnan(self.dhdt1)] = 0
         self.mask_Kr[0:10,:]=0
 
         
@@ -124,25 +124,24 @@ class input_data():
         #self.retreat_mask[self.retreat_mask+self.mask_Kr==2]=0
         #self.retreat_mask[np.logical_and(np.isnan(self.dhdt1), np.isnan(self.dhdt0)==False)]=1
         
-        self.mask = self.mask_Ko + self.mask_Kr
+        self.mask = copy(self.mask_Kr)
         self.mask[self.mask>0] = 1
         
         #self.NPI_DEM[self.retreat_mask==1] = 0
 
     def clean_dhdt(self):
         
-        self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
-
         ## set ocean (i.e. what is not land or glacier) to negative value
         self.ocean_mask = np.zeros_like(self.x)
-        self.ocean_mask[self.NPI_DEM<90]=1
-        #self.ocean_mask[(self.dhdt1-self.dhdt0)>10]=1  #this should reflect area where the glacier has retreated
+        #self.ocean_mask[self.NPI_DEM<90]=1
+        self.ocean_mask[np.logical_and(self.mask==0, self.NPI_DEM<150)]=1  #this should reflect area where the glacier has retreated
         #self.ocean_mask[np.logical_and(np.isnan(self.dhdt0), self.NPI_DEM<5)]=1
         self.ocean_mask[:,120:-1]=0
         self.ocean_mask[:10,:]=0
         self.ocean_mask[:,:10]=0
         self.ocean_mask[self.mask==1]=0
 
+        self.dhdt0[np.isnan(self.dhdt0)] = self.NPI_DEM[np.isnan(self.dhdt0)]
         self.dhdt1[np.isnan(self.dhdt1)] = self.NPI_DEM[np.isnan(self.dhdt1)]
 
         self.dhdt0[self.mask_Kr==0] = self.NPI_DEM[self.mask_Kr==0]
@@ -150,7 +149,7 @@ class input_data():
         
         self.dhdt = (self.dhdt1 - self.dhdt0)/6
         self.dhdt[np.isnan(self.dhdt)] = 0
-        self.dem = copy(self.dhdt0)#(self.dhdt0+self.dhdt1)/2
+        self.dem = copy(self.dhdt1)#(self.dhdt0+self.dhdt1)/2
         self.dem[self.ocean_mask==1]=-100
         self.dhdt[self.ocean_mask==1]=0
 
@@ -182,7 +181,7 @@ class input_data():
         self.smb[self.smb<-2] = -2
         self.smb[self.smb>1] = 1
         
-    def get_vel_field(self, path):
+    def get_vel_stake(self, path):
         ### velocity from Jack ###
         vel_xyz_df = pd.read_excel(path, 1, header=None)
         vel_x = np.array(vel_xyz_df.loc[:,1])
@@ -190,15 +189,48 @@ class input_data():
         vel_z = np.array(vel_xyz_df.loc[:,3])
         
         vel_df = pd.read_excel (path, 0, header=None)
-        self.vel_field = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
+        self.vel_stake = np.nanmean(np.array(vel_df.loc[3:,range(20,30,2)]), axis=1)
 
     def get_vel_Adrian(self):
-        path = 'AL_vels_HDF.mat'
+        path = './kronebreen/AL_vels_HDF.mat'
         Adrian_vel_mat = scipy.io.loadmat(path)['AL_vels_HDF'][0,0]
         self.vel_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[2].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
-        self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.itslive_vel[np.isnan(self.vel_Adrian)]
+        self.vx_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[3].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
+        self.vy_Adrian = 365*(scipy.interpolate.griddata(((Adrian_vel_mat[0]).flatten(), (Adrian_vel_mat[1]).flatten()), Adrian_vel_mat[4].flatten(), ((self.x).flatten(), (self.y).flatten()))).reshape(np.shape(self.x))
 
+        self.vel_Adrian[np.isnan(self.vel_Adrian)] = self.vel_Jack[np.isnan(self.vel_Adrian)]
+        self.vx_Adrian[np.isnan(self.vel_Adrian)] = self.vx_Jack[np.isnan(self.vel_Adrian)]
+        self.vy_Adrian[np.isnan(self.vel_Adrian)] = self.vy_Jack[np.isnan(self.vel_Adrian)]
+
+    def get_data_Millan(self):
+        thk_o = rasterio.open('./kronebreen/RGI-7_thk/THICKNESS_RGI-7.1_2021July09.tif')  
+        window_thk = (thk_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
+        self.thk_Millan_in = np.flip(thk_o.read(1, window=window_thk), axis = 0)
+
+        vel_o = rasterio.open('./kronebreen/RGI-7_vel/V_RGI-7.1_2021July01.tif')
+        window_vel = (vel_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
+        self.vel_Millan_in = np.flip(vel_o.read(1, window=window_vel), axis = 0)
+        self.vel_Millan_in[np.isnan(self.vel_Millan_in)] = 0
+        '''
+        destination = np.zeros((np.shape(self.x)[0], np.shape(self.x)[1]+3))
+        self.vel_Millan = rasterio.warp.reproject(
+            vel_in,
+            destination,
+            src_transform=vel_o.transform,
+            src_crs=vel_o.crs,
+            dst_transform=self.NPI_DEM_o.transform,
+            dst_crs=self.NPI_DEM_o.crs,
+            resampling=rasterio.warp.Resampling.nearest)[0]
         
+        self.thk_Millan = rasterio.warp.reproject(
+            thk_in,
+            destination,
+            src_transform=thk_o.transform,
+            src_crs=thk_o.crs,
+            dst_transform=self.NPI_DEM_o.transform,
+            dst_crs=self.NPI_DEM_o.crs,
+            resampling=rasterio.warp.Resampling.nearest)[0]
+        '''
     def resample_input(self):
         self.data_res = 50
         self.res = 250
@@ -213,6 +245,13 @@ class input_data():
         self.vel_Jack = zoom(self.vel_Jack, self.resample)
         self.vx_Jack = zoom(self.vx_Jack, self.resample)
         self.vy_Jack = zoom(self.vy_Jack, self.resample)
+        self.vel_Adrian = zoom(self.vel_Adrian, self.resample)
+        self.vx_Adrian = zoom(self.vx_Adrian, self.resample)
+        self.vy_Adrian = zoom(self.vy_Adrian, self.resample)
+        self.vel_Millan = np.zeros_like(self.NPI_DEM)
+        self.vel_Millan[:,1:] = zoom(self.vel_Millan_in, self.resample)
+        self.thk_Millan = np.zeros_like(self.NPI_DEM)
+        self.thk_Millan[:,1:] = zoom(self.thk_Millan_in, self.resample)
         
         self.mask = np.around(zoom(self.mask, self.resample), 0)
         self.mask_Kr = np.around(zoom(self.mask_Kr, self.resample), 0)
@@ -229,7 +268,7 @@ class input_data():
                     continue
                 x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
                 circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
-                self.contact_zone[np.logical_and(self.mask==1, circle)]=1
+                self.contact_zone[np.logical_and(self.mask==1, circle)]=1     
 
     def get_itslive_vel(self, paths):
         itslive_vel_o = rasterio.open(paths[0])
@@ -259,6 +298,9 @@ class input_data():
 
         Adrian_missing = np.where(np.logical_and(self.vel_Jack>=300, self.vel_Adrian<30))
         self.vel_Adrian[Adrian_missing]=self.vel_Jack[Adrian_missing]
+
+        Millan_missing = np.where(np.logical_and(self.vel_Jack>=500, self.vel_Millan<300))
+        self.vel_Millan[Millan_missing]=self.vel_Jack[Millan_missing]
         
     def filter_dhdt(self):
         ### filter outliers in dhdt ###
@@ -281,8 +323,19 @@ class input_data():
                     else:
                         dhdt_full_new[i,j] = self.dhdt[i,j]
         self.dhdt = dhdt_full_new
-        
+
+    def get_boundary(self):
+        self.boundary = np.zeros_like(self.x)
+        for i in range(np.shape(self.boundary)[1]):
+            for j in range(np.shape(self.boundary)[0]):
+                if self.mask[j,i]==1:
+                    continue
+                x, y = np.ogrid[:np.shape(self.x)[0], :np.shape(self.x)[1]]
+                circle = (y - i) ** 2 + (x - j) ** 2 < 1.5
+                self.boundary[np.logical_and(self.mask==1, circle)]=1
+                
     def set_parameters(self, ice_temp=273, ice_density = 900., secpera = 31556926., g = 9.81):
+        self.ice_temp = ice_temp
         self.A = 1.733e3*np.exp(-13.9e4/(8.3*ice_temp))
         self.ice_density = ice_density
         self.secpera = secpera
@@ -311,17 +364,21 @@ class input_data():
 
         self.set_smb('./kronebreen/HDF_mass_balance.xlsx')
 
-        self.get_vel_field('./kronebreen/HDF_stake_velocities.xlsx')
+        self.get_vel_stake('./kronebreen/HDF_stake_velocities.xlsx')
+
+        self.get_vel_Adrian()
+
+        self.get_data_Millan()
 
         self.resample_input()
 
         self.get_itslive_vel(['./kronebreen/vel_ITSLIVE_resample.tif', "./kronebreen/vx_ITSLIVE_proj.tif", "./kronebreen/vy_ITSLIVE_proj.tif"])
 
-        self.get_vel_Adrian()
-
         self.fill_in_vel()
 
         self.filter_dhdt()
+
+        self.get_boundary()
 
         self.set_parameters()
 
@@ -352,9 +409,11 @@ class radar_data():
         inds = np.array(df_place.index)
         bed_loc = df_place['rad']
         x_rad_sample = df_place['x_rad']
+        y_rad_sample = df_place['y_rad']
         self.mask_arr = np.zeros_like(input.x, dtype='float')
         self.bed_arr = np.zeros_like(input.x, dtype='float')
         self.x_arr = np.zeros_like(input.x, dtype='float')
+        self.y_arr = np.zeros_like(input.x, dtype='float')
         
         n = int(len(inds)/2)
         random_index = np.random.choice(len(inds), n, replace=False)  
@@ -364,6 +423,7 @@ class radar_data():
             self.mask_arr[i]=1
             self.bed_arr[i] = bed_loc[i]
             self.x_arr[i] = x_rad_sample[i]
+            self.y_arr[i] = y_rad_sample[i]
         
         
     def check_shape(self):
@@ -379,85 +439,29 @@ def check_shape(x, data, flag = 0):
             if len(d)>0 and np.shape(d) != np.shape(x):
                     raise ValueError('not correct shape of input data') 
 
-def create_init(input):
-    WRIT_FILE = 'kronebreen_kongsbreen_initialSetup.nc'
-
-    ### CONSTANTS ###
     
-    ny, nx = np.shape(input.x)
-    Lx = nx * input.res  # in m
-    Ly =  ny * input.res # in m
+##### define dimensions in NetCDF file #####
+def create_nc_input(vars, WRIT_FILE, nx, ny):
+    ncfile = NC(WRIT_FILE, 'w', format='NETCDF3_CLASSIC')
+    xdim = ncfile.createDimension('x', nx)
+    ydim = ncfile.createDimension('y', ny)
     
-    x_in = np.linspace(-Lx/2, Lx/2, nx)
-    y_in = np.linspace(-Ly/2, Ly/2, ny)
-    
-    B_rec = input.dem
-    B_init = deepcopy(B_rec)
-    ice_surface_temp = np.ones((ny, nx))*input.ice_temp
-    #M_refs = np.nan_to_num(M_refs)
-    #M_refs *= mask
-    
-    h_rec = input.dem - B_rec
-    
-    ##### define variables, set attributes, write data #####
-    # format: ['units', 'long_name', 'standard_name', '_FillValue', array]
-    
-    vars = {'y':    ['m',
-                     'y-coordinate in Cartesian system',
-                     'projection_y_coordinate',
-                     None,
-                     y_in],
-            'x':    ['m',
-                     'x-coordinate in Cartesian system',
-                     'projection_x_coordinate',
-                     None,
-                     x_in],
-            'thk':  ['m',
-                     'ice thickness',
-                     'land_ice_thickness',
-                     1.0,
-                     h_rec],
-            'topg': ['m',
-                     'bedrock surface elevation',
-                     'bedrock_altitude',
-                     0.0,
-                     B_rec],
-            'ice_surface_temp': ['K',
-                                 'annual mean air temperature at ice surface',
-                                 'surface_temperature',
-                                 273,
-                                 ice_surface_temp],
-            'climatic_mass_balance': ['kg m-2 year-1',
-                                      'mean annual net ice equivalent accumulation rate',
-                                      'land_ice_surface_specific_mass_balance_flux',
-                                      0,
-                                      input.smb * input.ice_density * input.mask]
-            }
-    
-    ##### define dimensions in NetCDF file #####
-    def create_nc_input(vars, WRIT_FILE):
-        ncfile = NC(WRIT_FILE, 'w', format='NETCDF3_CLASSIC')
-        xdim = ncfile.createDimension('x', nx)
-        ydim = ncfile.createDimension('y', ny)
+    for name in list(vars.keys()):
+        [_, _, _, fill_value, data] = vars[name]
+        if name in ['x', 'y']:
+            var = ncfile.createVariable(name, 'f4', (name,))
+        else:
+            var = ncfile.createVariable(name, 'f4', ('y', 'x'), fill_value=fill_value)
+        for each in zip(['units', 'long_name', 'standard_name'], vars[name]):
+            if each[1]:
+                setattr(var, each[0], each[1])
+        var[:] = data
         
-        for name in list(vars.keys()):
-            [_, _, _, fill_value, data] = vars[name]
-            if name in ['x', 'y']:
-                var = ncfile.createVariable(name, 'f4', (name,))
-            else:
-                var = ncfile.createVariable(name, 'f4', ('y', 'x'), fill_value=fill_value)
-            for each in zip(['units', 'long_name', 'standard_name'], vars[name]):
-                if each[1]:
-                    setattr(var, each[0], each[1])
-            var[:] = data
+    # finish up
+    ncfile.close()
+    print("NetCDF file ", WRIT_FILE, " created")
+    print('')
         
-        # finish up
-        ncfile.close()
-        print("NetCDF file ", WRIT_FILE, " created")
-        print('')
-        
-    create_nc_input(vars, WRIT_FILE)
-    
     
 def scale(x):
     return (x-np.nanmin(x))/(np.nanmax(x)-np.nanmin(x))
@@ -507,7 +511,7 @@ def create_script(forward_or_iteration, nx, ny):
     print('')
     print('CLIMATE="-surface given -surface_given_file $CLIMATEFILE"')
     print('grid="-Mx {} -My {} -Mz 50 -Mbz 1 -Lz 1500 -Lbz 1"'.format(nx, ny))
-    print('PHYS="-stress_balance ssa+sia -sia_flow_law isothermal_glen -ssa_flow_law isothermal_glen"')# -basal_resistance.beta_lateral_margin 0 -stress_balance.ssa.fd.lateral_drag.viscosity 0"')
+    print('PHYS="-stress_balance ssa+sia -sia_flow_law isothermal_glen -ssa_flow_law isothermal_glen"')# -nu_bedrock 1 -basal_resistance.beta_lateral_margin 1"')
     print('THERMAL="-energy none -calving float_kill"')
     #print('OCEAN="-dry"')
     print('CONF="-config_override kronebreen_kongsbreen_conf.nc"')
@@ -552,20 +556,8 @@ def create_script(forward_or_iteration, nx, ny):
     print('echo')
     print('$cmd')
     
-def launch_init(nx, ny):
-    original_stdout = sys.stdout # Save a reference to the original standard output
-    with open('kronebreen_kongsbreen_initialize.sh', 'w') as f:
-        sys.stdout = f # Change the standard output to the file we created.
-        create_script('forward', nx, ny)
-        sys.stdout = original_stdout # Reset the standard output to its original value
-        f.close()
-        
-    cmd = ['chmod', '+x', 'kronebreen_kongsbreen_initialize.sh']
-    subprocess.call(cmd)
-    cmd = ['./kronebreen_kongsbreen_initialize.sh', '4', 'kronebreen_kongsbreen_initialSetup.nc', '1', 'kronebreen_kongsbreen_output.nc > kronebreen_kongsbreen_output_log.txt']
-    subprocess.call(cmd)
     
-import richdem as rd
+#import richdem as rd
 import math
 
 def stagger(x):
@@ -642,11 +634,12 @@ class model():
             self.B_rec = self.S_rec - self.initial_thickness           # no smoothing applied in standard initialization
             self.tauc_rec = (500+self.B_rec)*1e3
             self.tauc_rec[input.ocean_mask==1]=np.median(self.tauc_rec[input.mask==1])
+            #self.tauc_rec[np.logical_and(input.contact_zone!=1, input.boundary==1)] = 1e10
             self.dh_ref = input.dhdt
             self.mask = input.mask
             self.ocean_mask = input.ocean_mask
             self.contact_zone = input.contact_zone
-            self.vel_mes = input.itslive_vel
+            self.vel_mes = input.vel_Jack
             self.smb = input.smb
             self.B_init = copy(self.B_rec)
             self.S_init = copy(self.S_rec)
@@ -661,25 +654,30 @@ class model():
             self.S_rec_all = []
             self.vel_all = []
             self.tauc_recs = []
+            self.stop = [0]
+            self.misfit_vs_iter = []
        
     class it_parameters_class:      
         def __init__(self, input):
-            self.pmax = 2999
+            self.pmax = 3000
             self.dt = 0.1
             self.beta = 0.5
             self.shift = 0.3
             self.delta_surf = 0.025
-            self.p_friction = 10000
+            self.p_friction = 1000
             self.diff_lim = 1e-1
             self.n_cores = 7
-            self.A = 3.9565534675428266e-24
+            self.A = input.A
             self.g = 9.81
-            self.ice_density = 900
+            self.ice_density = input.ice_density
+            self.ice_temp = input.ice_temp
             self.smooth_surf_in = (1,3)
             self.smooth_B_in = (.6, .3)
             self.res = copy(input.res)
             self.max_time = 10
             self.tauc_scale = 1
+            self.max_steps_PISM = 80
+            self.secpera = input.secpera
             
     class it_products_class:     
         def __init__(self):
@@ -694,6 +692,7 @@ class model():
             self.vel_mismatch = []
             self.h_old = []    
             self.H_rec = []
+            self.max_allowed_thk = []
             self.start_time = time.time()
         
     class file_locations_class():     
@@ -703,6 +702,89 @@ class model():
             self.it_log = 'kronebreen_kongsbreen_iteration_log.txt'
             self.it_script = 'kronebreen_kongsbreen_iteration_script.sh' 
             self.init_output = 'kronebreen_kongsbreen_output.nc'
+            self.conf_file = 'kronebreen_kongsbreen_conf.nc'
+            self.initial_setup = 'kronebreen_kongsbreen_initialSetup.nc'
+            self.init_script = 'kronebreen_kongsbreen_initialize.sh'
+
+    def create_conf_file(self):
+        filename = self.file_locations.conf_file
+        nc = NC(filename, 'w', format="NETCDF3_CLASSIC")
+        var = nc.createVariable("pism_overrides", 'i')
+
+        attrs = {
+         "geometry.update.use_basal_melt_rate": "no",
+         "stress_balance.ssa.compute_surface_gradient_inward": "no",
+         "flow_law.isothermal_Glen.ice_softness": self.it_parameters.A,
+         "constants.ice.density": self.it_parameters.ice_density,
+         "constants.sea_water.density": 1000.,
+         "bootstrapping.defaults.geothermal_flux": 0.0,
+         "stress_balance.ssa.Glen_exponent": 3.,
+         "constants.standard_gravity": 9.81,
+         "ocean.sub_shelf_heat_flux_into_ice": 0.0,
+         "stress_balance.sia.bed_smoother.range": 0.0,
+         }
+
+        for name, value in attrs.items():
+            var.setncattr(name, value)
+        nc.close()
+
+    def create_init(self):
+        WRIT_FILE = self.file_locations.initial_setup
+
+        ### CONSTANTS ###
+
+        ny, nx = np.shape(self.it_fields.S_ref)
+        Lx = nx * self.it_parameters.res  # in m
+        Ly =  ny *self.it_parameters.res # in m
+
+        x_in = np.linspace(-Lx/2, Lx/2, nx)
+        y_in = np.linspace(-Ly/2, Ly/2, ny)
+
+        B_rec = self.it_fields.S_ref
+        B_init = deepcopy(B_rec)
+        ice_surface_temp = np.ones((ny, nx))*self.it_parameters.ice_temp
+        #M_refs = np.nan_to_num(M_refs)
+        #M_refs *= mask
+
+        h_rec = np.zeros_like(self.it_fields.S_ref)
+
+        ##### define variables, set attributes, write data #####
+        # format: ['units', 'long_name', 'standard_name', '_FillValue', array]
+
+        vars = {'y':    ['m',
+                         'y-coordinate in Cartesian system',
+                         'projection_y_coordinate',
+                         None,
+                         y_in],
+                'x':    ['m',
+                         'x-coordinate in Cartesian system',
+                         'projection_x_coordinate',
+                         None,
+                         x_in],
+                'thk':  ['m',
+                         'ice thickness',
+                         'land_ice_thickness',
+                         1.0,
+                         h_rec],
+                'topg': ['m',
+                         'bedrock surface elevation',
+                         'bedrock_altitude',
+                         None,
+                         B_rec],
+                'ice_surface_temp': ['K',
+                                     'annual mean air temperature at ice surface',
+                                     'surface_temperature',
+                                     None,
+                                     ice_surface_temp],
+                'climatic_mass_balance': ['kg m-2 year-1',
+                                          'mean annual net ice equivalent accumulation rate',
+                                          'land_ice_surface_specific_mass_balance_flux',
+                                          None,
+                                          self.it_fields.smb * self.it_parameters.ice_density * self.it_fields.mask]
+                }
+
+        create_nc_input(vars, WRIT_FILE, nx, ny)
+
             
     def smooth_SandB(self, input):
         self.it_fields.S_rec[self.it_fields.mask==0] = np.nan
@@ -710,6 +792,7 @@ class model():
         self.it_fields.S_rec[self.it_fields.mask==0] = self.it_fields.S_ref[self.it_fields.mask==0]
         
         D = cal_diffusivity(self.it_fields.initial_thickness, self.it_parameters.A, self.it_parameters.g, self.it_parameters.ice_density, input.dem_slope, self.it_fields.mask)
+        
         self.it_fields.initial_thickness[D[0]>self.it_parameters.diff_lim] = (self.it_parameters.diff_lim/(D[1]*(input.dem_slope[D[0]>self.it_parameters.diff_lim])**2))**(1/5)
         
         self.it_fields.B_rec[self.it_fields.mask==0] = np.nan
@@ -743,7 +826,10 @@ class model():
     def correct_for_diffusivity(self):
         self.it_products.H_rec = self.it_fields.S_rec - self.it_fields.B_rec
         self.it_products.D_iter = cal_diffusivity(self.it_products.H_rec, self.it_parameters.A, self.it_parameters.g, self.it_parameters.ice_density, self.it_products.slope_iter, self.it_fields.mask)
+        #self.it_products.max_allowed_thk = ((((self.it_parameters.dt/self.it_parameters.max_steps_PISM)*self.it_parameters.secpera/(self.it_parameters.res**2)/0.12)**(-1))/(self.it_products.D_iter[1]*self.it_products.slope_iter**2))**(1/5)
+
         self.it_products.H_rec[self.it_products.D_iter[0]>self.it_parameters.diff_lim] = (1e-1/(self.it_products.D_iter[1]*(self.it_products.slope_iter[self.it_products.D_iter[0]>self.it_parameters.diff_lim])**2))**(1/5)
+        #self.it_products.H_rec = np.minimum(self.it_products.max_allowed_thk, self.it_products.H_rec)
         self.it_fields.B_rec = self.it_fields.S_rec - self.it_products.H_rec
         
     def mask_fields(self):
@@ -763,13 +849,14 @@ class model():
         self.series.misfit_all.append(self.it_products.misfit)
         self.series.B_misfit_vs_iter.append(np.mean(abs(self.it_fields.B_rec - self.it_fields.B_init)))
         self.series.dh_misfit_vs_iter.append(np.mean(abs(self.it_products.dh_rec[self.it_fields.mask==1] - self.it_fields.dh_ref[self.it_fields.mask==1])))
-        self.series.S_rec_all.append(self.it_fields.S_rec)
-        self.series.vel_all.append(self.it_products.vel_mod)
-        self.series.tauc_recs.append(self.it_fields.tauc_rec)
+        self.series.S_rec_all.append(copy(self.it_fields.S_rec))
+        self.series.vel_all.append(copy(self.it_products.vel_mod))
+        self.series.tauc_recs.append(copy(self.it_fields.tauc_rec))
+        self.series.misfit_vs_iter.append(np.median(abs(self.it_products.misfit[self.it_fields.mask==1])))
         
     def update_tauc(self):
-        #self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, 1), -1)
-        self.it_products.vel_mismatch = np.maximum(np.minimum(np.maximum(self.it_products.vel_mod.data,0) - self.it_fields.vel_mes,100),-100)/200
+        self.it_products.vel_mismatch = np.maximum(np.minimum((np.maximum(self.it_products.vel_mod,0) - self.it_fields.vel_mes)/self.it_fields.vel_mes, .5), -.5)
+        #self.it_products.vel_mismatch = np.maximum(np.minimum(np.maximum(self.it_products.vel_mod.data,0) - self.it_fields.vel_mes,100),-100)/200
         self.it_products.vel_mismatch[self.it_fields.mask==0]=np.nan
         self.it_products.vel_mismatch =  gauss_filter(self.it_products.vel_mismatch, 2,4)
         self.it_products.vel_mismatch[np.isnan(self.it_products.vel_mismatch)]=0
@@ -790,21 +877,37 @@ class model():
         cmd = ['./{}'.format(self.file_locations.it_script), str(self.it_parameters.n_cores), self.file_locations.it_in, str(self.it_parameters.dt), self.file_locations.it_out]
         subprocess.call(cmd, stdout = open(self.file_locations.it_log, 'a'))
 
-    def create_it_script(self):
+    def create_it_script(self, forward_or_iteration):
         original_stdout = sys.stdout # Save a reference to the original standard output
-        with open(self.file_locations.it_script, 'w') as f:
+        if forward_or_iteration == 'forward':
+            output_file = self.file_locations.init_script
+        else:
+            output_file = self.file_locations.it_script
+        with open(output_file, 'w') as f:
             sys.stdout = f # Change the standard output to the file we created.
-            create_script('iteration', np.shape(self.it_fields.S_ref)[0], np.shape(self.it_fields.S_ref)[1])
+            create_script(forward_or_iteration, np.shape(self.it_fields.S_ref)[1], np.shape(self.it_fields.S_ref)[0])
             sys.stdout = original_stdout # Reset the standard output to its original value
             f.close()
         
+    def set_stop(self, p):
+        if p > 20:
+            if np.all(abs(np.array(self.series.misfit_vs_iter[-20:]))<1e-2):
+                self.series.stop.append(p)
+            elif p%(self.series.stop[-1]+self.it_parameters.p_friction) == 0:
+                self.series.stop.append(p)
+            
     def iterate(self, input):
-        self.smooth_SandB(input)
-        self.create_it_script()
+        self.smooth_SandB(input)                              
+        self.create_conf_file()
+        self.create_init()
+        self.create_it_script('forward')
+        subprocess.call(['./{}'.format(self.file_locations.init_script), str(self.it_parameters.n_cores), self.file_locations.initial_setup, '1', self.file_locations.init_output,'>', 'kronebreen_kongsbreen_output_log.txt'])
+        self.create_it_script('iteration')
         subprocess.call(['cp', self.file_locations.init_output, self.file_locations.it_out])
         
         self.it_products.start_time = time.time()
-        for p in range(self.it_parameters.pmax):
+        p=0
+        while p < self.it_parameters.pmax:
             print(p)
             self.it_products.h_old = self.it_fields.S_rec - self.it_fields.B_rec     
             subprocess.call(['cp', self.file_locations.it_out, self.file_locations.it_in])
@@ -820,11 +923,20 @@ class model():
             self.correct_for_diffusivity()
             self.mask_fields()
             self.append_series()
-            if p>0 and p%self.it_parameters.p_friction == 0:
+            self.set_stop(p)
+            if p>0 and p==self.series.stop[-1]:
                 self.update_tauc()
             if time.time() > self.it_products.start_time + self.it_parameters.max_time * 60 * 60:
                 self.warnings.append('run did not finish in designated max time')
                 break
+            if len(self.series.stop)>1 and p==self.series.stop[-1]+1:
+                if abs(self.series.misfit_vs_iter[self.series.stop[-2]+1]) - abs(self.series.misfit_vs_iter[self.series.stop[-1]+1])<.3e-1:
+                    break
+                else:
+                    p+=1
+            else:
+                p+=1
+                                                                          
 
     def restart(self, it_step):
         self.it_fields.S_rec = self.series.S_rec_all[it_step]

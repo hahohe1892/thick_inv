@@ -44,8 +44,6 @@ if __name__ == '__main__':
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
         "-sea_level.constant.value": -1e4,
-        "-bed_def": "iso",
-        "-bed_deformation.mantle_density": 1e20,
         "-o": output_file
     }
     
