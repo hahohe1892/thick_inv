@@ -100,8 +100,8 @@ class input_data():
     def get_dhdt(self, matrix):
         self.dhdt0 = np.zeros_like(self.x, dtype='float')*np.nan
         self.dhdt1 = np.zeros_like(self.x, dtype='float')*np.nan
-        self.dhdt0[:np.shape(self.x)[0]-int(10000/50),:] = matrix[4]
-        self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5]
+        self.dhdt0[:np.shape(self.x)[0]-int(10000/50),:] = matrix[4] #2014 DEM
+        self.dhdt1[:np.shape(self.x)[0]-int(10000/50),:] = matrix[5] #2020 DEM
     
         self.mask_Kr = np.ones_like(self.x)
         self.mask_Kr[np.isnan(self.dhdt1)] = 0

@@ -164,7 +164,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
 
     # correct bed in locations where a large diffusivity would cause pism to take many internal time steps
     if correct_diffusivity == 'yes':
-        B_rec = correct_high_diffusivity(S_rec, B_rec, mask, dt, max_steps_PISM, res, A)
+        B_rec = correct_high_diffusivity(S_rec, B_rec, dt, max_steps_PISM, res, A)
     
     # mask out 
     B_rec[mask==0] = bed[mask==0]

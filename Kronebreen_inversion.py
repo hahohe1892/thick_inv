@@ -34,7 +34,7 @@ options = {
     "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
     "-stress_balance.sia.bed_smoother.range": 0.0,
     "-o": "Kronebreen_output.nc",
-    "-sea_level.constant.value": -1e20,
+    "-sea_level.constant.value": 0,
     "-time_stepping.assume_bed_elevation_changed": "true"
     }
 
@@ -86,7 +86,7 @@ for p in range(pmax):
                                                res=res,
                                                A=A,
                                                max_steps_PISM = max_steps_PISM,
-                                               treat_ocean_boundary = 'no',
+                                               treat_ocean_boundary = 'yes',
                                                correct_diffusivity = 'yes',
                                                contact_zone = contact_zone,
                                                ocean_mask = ocean_mask)
@@ -95,3 +95,27 @@ for p in range(pmax):
 
 pism.save_results()
 dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
+
+colormap = plt.cm.viridis
+colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
+
+fig, ax = plt.subplots(1,3, figsize=(15,4))
+for i in range(len(B_rec_all)):
+    lines = ax[0].plot(range(B_rec_all[i].shape[1]), B_rec_all[i][45,:], color = colors[i])
+    lines = ax[0].plot(range(B_rec_all[i].shape[1]), S_rec[45,:], color = 'b')
+field = ax[1].pcolor(B_rec)
+fig.colorbar(field, ax = ax[1])
+
+lines1 = ax[2].plot(dh_misfit_vs_iter)
+ax[0].set_xlabel('x-coordinate')
+ax[0].set_ylabel('recovered bed elevation[m]')
+plt.show()
+
+
+diags = pism.stress_balance().diagnostics().asdict()
+diffusivity = diags['diffusivity'].compute().local_part()
+
+fig, ax = plt.subplots(1,2)
+ax[0].pcolpor(S_rec - B_rec_all[0]) #calc_slope(S_rec, res), vmax = .5)
+ax[1].pcolor(mask[2:-2,2:-2]/5+diffusivity, vmax = .25)
+plt.show()
