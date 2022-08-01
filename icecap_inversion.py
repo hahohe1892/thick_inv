@@ -75,7 +75,7 @@ S_rec_old = np.copy(S_rec)
 dt = .1
 beta = 1
 bw = 5
-pmax = 8000
+pmax = 100
 p_friction = 1000
 max_steps_PISM = 20
 res = 1000
@@ -108,20 +108,35 @@ for p in range(pmax):
     misfit_all.append(misfit)
 
 pism.save_results()
-dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
-B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
 
-colormap = plt.cm.viridis
-colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
+#plot results, but only if script is not run on multiple cores (as this will cause a shape mismatch in the arrays)
+try: 
+    dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
+    B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
 
-fig, ax = plt.subplots(1,3, figsize=(15,4))
-for i in range(len(B_rec_all)):
-    lines = ax[0].plot(range(B_rec_all[i].shape[0]), B_rec_all[i][27,:], color = colors[i])
+    colormap = plt.cm.viridis
+    colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
 
-field = ax[1].pcolor(B_rec)
-fig.colorbar(field, ax = ax[1])
+    fig, ax = plt.subplots(1,3, figsize=(15,4))
+    for i in range(len(B_rec_all)):
+        lines = ax[0].plot(range(B_rec_all[i].shape[0]), B_rec_all[i][27,:], color = colors[i])
 
-lines1 = ax[2].plot(dh_misfit_vs_iter)
-ax[0].set_xlabel('x-coordinate')
-ax[0].set_ylabel('recovered bed elevation[m]')
-plt.show()
+    field = ax[1].pcolor(B_rec)
+    fig.colorbar(field, ax = ax[1])
+
+    lines1 = ax[2].plot(dh_misfit_vs_iter)
+    ax[0].set_xlabel('x-coordinate')
+    ax[0].set_ylabel('recovered bed elevation[m]')
+    plt.show()
+except(ValueError):
+    print('done')
+
+'''
+0.0125
+0.0081
+0.0074
+0.0066
+0.0070
+0.0056
+0.0056
+'''

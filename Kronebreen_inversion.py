@@ -59,13 +59,14 @@ S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
 dt = .1
 beta = .5
 bw = 0
-pmax = 1
+pmax = 100
 p_friction = 1000
 max_steps_PISM = 20
 res = 250
 A = 3.9565534675428266e-24
 
 B_init = np.copy(B_rec)
+S_ref = np.copy(S_rec)
 B_rec_all = []
 misfit_all = []
 
@@ -94,7 +95,6 @@ for p in range(pmax):
     misfit_all.append(misfit)
 
 pism.save_results()
-<<<<<<< HEAD
 
 #plot results, but only if script is not run on multiple cores (as this will cause a shape mismatch in the arrays)
 try: 
@@ -116,30 +116,13 @@ try:
     plt.show()
 except(ValueError):
     print('done')
-=======
-dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
-
-colormap = plt.cm.viridis
-colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
-
-fig, ax = plt.subplots(1,3, figsize=(15,4))
-for i in range(len(B_rec_all)):
-    lines = ax[0].plot(range(B_rec_all[i].shape[1]), B_rec_all[i][45,:], color = colors[i])
-    lines = ax[0].plot(range(B_rec_all[i].shape[1]), S_rec[45,:], color = 'b')
-field = ax[1].pcolor(B_rec)
-fig.colorbar(field, ax = ax[1])
-
-lines1 = ax[2].plot(dh_misfit_vs_iter)
-ax[0].set_xlabel('x-coordinate')
-ax[0].set_ylabel('recovered bed elevation[m]')
-plt.show()
 
 
 diags = pism.stress_balance().diagnostics().asdict()
 diffusivity = diags['diffusivity'].compute().local_part()
 
 fig, ax = plt.subplots(1,2)
-ax[0].pcolpor(S_rec - B_rec_all[0]) #calc_slope(S_rec, res), vmax = .5)
+ax[0].pcolor(S_rec - B_rec_all[-1]) #calc_slope(S_rec, res), vmax = .5)
 ax[1].pcolor(mask[2:-2,2:-2]/5+diffusivity, vmax = .25)
 plt.show()
->>>>>>> 2d9884e4deb0da774a9003b6723a07f203eb1390
+

@@ -6,6 +6,9 @@ from copy import copy
 from netCDF4 import Dataset as NC
 from scipy.interpolate import griddata
 from scipy import ndimage
+from celluloid import Camera
+import subprocess
+import matplotlib.pyplot as plt
 
 def identify_neighbors(n,m, nan_list, talks_to):
     nan_count = np.shape(nan_list)[0]
@@ -226,3 +229,14 @@ def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_d
     bed = surf - H_rec
     
     return bed
+
+def movie(field_series, step=1, **kwargs):
+    fig = plt.figure()
+    camera = Camera(fig)
+    for f in range(0, len(field_series), step):
+        plt.pcolor(field_series[f], **kwargs)
+        camera.snap()
+    animation = camera.animate()
+    animation.save('animation.mp4')
+    cmd = ['xdg-open', 'animation.mp4']
+    subprocess.call(cmd)
