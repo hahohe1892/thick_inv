@@ -15,8 +15,8 @@ if __name__ == '__main__':
     setup = set_topography()
     write_setup_to_nc(setup, setup_file)
     options = {
-        "-Mz": 30,
-        "-Lz": 5000,
+        "-Mz": 50,
+        "-Lz": 1500,
         #"-z_spacing": "equal",
         "-surface" : "given",
         "-atmosphere.given.file": setup_file,

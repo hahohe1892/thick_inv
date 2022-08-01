@@ -203,11 +203,11 @@ class input_data():
         self.vy_Adrian[np.isnan(self.vel_Adrian)] = self.vy_Jack[np.isnan(self.vel_Adrian)]
 
     def get_data_Millan(self):
-        thk_o = rasterio.open('./kronebreen/RGI-7_thk/THICKNESS_RGI-7.1_2021July09.tif')  
+        thk_o = rasterio.open('./kronebreen/THICKNESS_RGI-7.1_2021July09.tif')  
         window_thk = (thk_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
         self.thk_Millan_in = np.flip(thk_o.read(1, window=window_thk), axis = 0)
 
-        vel_o = rasterio.open('./kronebreen/RGI-7_vel/V_RGI-7.1_2021July01.tif')
+        vel_o = rasterio.open('./kronebreen/V_RGI-7.1_2021July01.tif')
         window_vel = (vel_o.window(np.min(self.x), np.min(self.y), np.max(self.x), np.max(self.y),1))
         self.vel_Millan_in = np.flip(vel_o.read(1, window=window_vel), axis = 0)
         self.vel_Millan_in[np.isnan(self.vel_Millan_in)] = 0
@@ -352,7 +352,7 @@ class input_data():
 
         self.get_vel(DEM_VEL_mat)
 
-        self.get_outlines('./kronebreen/rgi_outlines/07_rgi60_Svalbard.shp')
+        self.get_outlines('./kronebreen/07_rgi60_Svalbard.shp')
 
         self.get_dhdt(DEM_VEL_mat)
 
