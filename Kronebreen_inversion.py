@@ -59,7 +59,7 @@ S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
 dt = .1
 beta = .5
 bw = 0
-pmax = 100
+pmax = 1
 p_friction = 1000
 max_steps_PISM = 20
 res = 250
@@ -94,4 +94,24 @@ for p in range(pmax):
     misfit_all.append(misfit)
 
 pism.save_results()
-dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
+
+#plot results, but only if script is not run on multiple cores (as this will cause a shape mismatch in the arrays)
+try: 
+    dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
+
+    colormap = plt.cm.viridis
+    colors = [colormap(i) for i in np.linspace(0,1,len(B_rec_all))]
+
+    fig, ax = plt.subplots(1,3, figsize=(15,4))
+    for i in range(len(B_rec_all)):
+        lines = ax[0].plot(range(B_rec_all[i].shape[1]), B_rec_all[i][27,:], color = colors[i])
+
+    field = ax[1].pcolor(B_rec)
+    fig.colorbar(field, ax = ax[1])
+
+    lines1 = ax[2].plot(dh_misfit_vs_iter)
+    ax[0].set_xlabel('x-coordinate')
+    ax[0].set_ylabel('recovered bed elevation[m]')
+    plt.show()
+except(ValueError):
+    print('done')
