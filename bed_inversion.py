@@ -195,7 +195,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
         #            true_tauc[i,j] -= 4e7
         #tauc_rec[criterion] = true_tauc[criterion]
     
-    return B_rec, S_rec, tauc_rec, misfit, thk_mask
+    return B_rec, S_rec, tauc_rec, misfit
 
 def iteration_friction_first(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
         

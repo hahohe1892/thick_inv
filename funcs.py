@@ -221,7 +221,8 @@ def calc_slope(field, res):
 
 def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_density=900, R=0.12, return_mask = False):
     H = surf - bed
-    slope = calc_slope(surf, res)
+    slope = np.zeros_like(H)
+    slope[1:-1, 1:-1] = calc_slope(surf, res)[1:-1,1:-1] #ignore margins pixels of slope since they are very large
     secpera = 31556926.
     T = (2*A*(g*ice_density)**3)/5
     max_allowed_thk = ((((dt/max_steps_PISM)*secpera/(res**2)/R)**(-1))/(T*slope**2))**(1/5)

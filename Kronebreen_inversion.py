@@ -78,7 +78,7 @@ for p in range(pmax):
     else:
         update_friction = 'no'
         
-    B_rec, S_rec, tauc_rec, misfit, thk_mask = iteration(pism,
+    B_rec, S_rec, tauc_rec, misfit = iteration(pism,
                                                B_rec, S_rec, tauc_rec, mask, dh_ref, vel_ref,
                                                dt = dt,
                                                beta = beta,
@@ -93,15 +93,6 @@ for p in range(pmax):
                                                ocean_mask = ocean_mask)
     B_rec_all.append(np.copy(B_rec))
     misfit_all.append(misfit)
-    diags = pism.stress_balance().diagnostics().asdict()
-    diffusivity = diags['diffusivity'].compute().local_part()
-    fig, ax = plt.subplots(1,3, figsize = (15,5))
-    field = ax[0].pcolor(misfit, cmap='RdBu', vmin = -5, vmax = 5)
-    field1 = ax[1].pcolor(diffusivity)
-    ax[1].set_title(np.max(diffusivity))
-    field2 = ax[2].pcolor(thk_mask, cmap='bwr')
-    plt.show()
-    
 
 pism.save_results()
 
