@@ -59,9 +59,9 @@ S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
 dt = .1
 beta = .5
 bw = 0
-pmax = 100
+pmax = 60
 p_friction = 1000
-max_steps_PISM = 20
+max_steps_PISM = 5
 res = 250
 A = 3.9565534675428266e-24
 
@@ -78,7 +78,7 @@ for p in range(pmax):
     else:
         update_friction = 'no'
         
-    B_rec, S_rec, tauc_rec, misfit = iteration(pism,
+    B_rec, S_rec, tauc_rec, misfit, thk_mask = iteration(pism,
                                                B_rec, S_rec, tauc_rec, mask, dh_ref, vel_ref,
                                                dt = dt,
                                                beta = beta,
@@ -93,6 +93,15 @@ for p in range(pmax):
                                                ocean_mask = ocean_mask)
     B_rec_all.append(np.copy(B_rec))
     misfit_all.append(misfit)
+    diags = pism.stress_balance().diagnostics().asdict()
+    diffusivity = diags['diffusivity'].compute().local_part()
+    fig, ax = plt.subplots(1,3, figsize = (15,5))
+    field = ax[0].pcolor(misfit, cmap='RdBu', vmin = -5, vmax = 5)
+    field1 = ax[1].pcolor(diffusivity)
+    ax[1].set_title(np.max(diffusivity))
+    field2 = ax[2].pcolor(thk_mask, cmap='bwr')
+    plt.show()
+    
 
 pism.save_results()
 
@@ -126,3 +135,13 @@ ax[0].pcolor(S_rec - B_rec_all[-1]) #calc_slope(S_rec, res), vmax = .5)
 ax[1].pcolor(mask[2:-2,2:-2]/5+diffusivity, vmax = .25)
 plt.show()
 
+'''
+run time for pmax = 60:
+max_steps_PISM: 20 --> 0.0835 wall clock hours
+max_steps_PISM: 15 --> 0.0720 wch
+max_steps_PISM: 10 --> 0.0630 wch
+max_steps_PISM: 5 --> 0.0469 wch
+
+summary:
+I tested how low I can go with max_steps_PISM before central parts of the glacier are affected by 'artificial' corrections arising from diffusivity-thickness-corrections. It seems like it is possible to go down as low as 5. I checked this by looking at where diffusivity-thickness-corrections are applied (i.e. I masked out where the thickness corresponds to the diffisivity-corrected thickness), and this is almost exclusively at the glacier margins. Only one pixel in a somewhat more central area is affected as well.
+'''

@@ -219,7 +219,7 @@ def calc_slope(field, res):
 
     return slope
 
-def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_density=900, R=0.12):
+def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_density=900, R=0.12, return_mask = False):
     H = surf - bed
     slope = calc_slope(surf, res)
     secpera = 31556926.
@@ -227,8 +227,12 @@ def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_d
     max_allowed_thk = ((((dt/max_steps_PISM)*secpera/(res**2)/R)**(-1))/(T*slope**2))**(1/5)
     H_rec = np.minimum(H, max_allowed_thk)
     bed = surf - H_rec
-    
-    return bed
+    if return_mask:
+        corrected_thk = np.zeros_like(H_rec)
+        corrected_thk[H_rec == max_allowed_thk] = 1
+        return bed, corrected_thk
+    else:
+        return bed
 
 def movie(field_series, step=1, **kwargs):
     fig = plt.figure()

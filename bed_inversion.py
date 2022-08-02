@@ -169,7 +169,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
 
     # correct bed in locations where a large diffusivity would cause pism to take many internal time steps
     if correct_diffusivity == 'yes':
-        B_rec = correct_high_diffusivity(S_rec, B_rec, dt, max_steps_PISM, res, A)
+        B_rec, thk_mask = correct_high_diffusivity(S_rec, B_rec, dt, max_steps_PISM, res, A, return_mask = True)
     
     # mask out 
     B_rec[mask==0] = bed[mask==0]
@@ -195,7 +195,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
         #            true_tauc[i,j] -= 4e7
         #tauc_rec[criterion] = true_tauc[criterion]
     
-    return B_rec, S_rec, tauc_rec, misfit
+    return B_rec, S_rec, tauc_rec, misfit, thk_mask
 
 def iteration_friction_first(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
         
