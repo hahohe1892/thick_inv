@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    mb_factor_in = PISM.OptionString("-mb_factor", "multiplication of mass balance")
+    vel_factor_in = PISM.OptionString("-vel_factor", "multiplication of mass balance")
 
-    if not mb_factor_in.is_set():
-        raise RuntimeError("-mb_factor is required")
+    if not vel_factor_in.is_set():
+        raise RuntimeError("-vel_factor is required")
     
-    mb_factor = float(mb_factor_in.value())
+    vel_factor = float(vel_factor_in.value())
 
     options = {
         "-Mz": 30,
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_mb_{}.nc".format(mb_factor),
+        "-o": "icecap_output_vel_{}.nc".format(vel_factor),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
@@ -62,9 +62,8 @@ if __name__ == '__main__':
     inversion_in['usurf'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['mask'][:,:] = get_nc_data('ice_build_output.nc', 'mask', 0)
     inversion_in['thk'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
-    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data)
+    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data) * vel_factor
     inversion_in['tauc'][:,:] = np.ones((51,51))*5e7
-    inversion_in['climatic_mass_balance'][:,:] = get_nc_data('ice_build_output.nc', 'climatic_mass_balance', 0) * mb_factor
     inversion_in.close()
 
     pism = create_pism("input.nc", options)
@@ -75,7 +74,7 @@ if __name__ == '__main__':
     B_rec = np.zeros_like(tauc_rec)
     S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
     mask = np.array(pism.geometry().cell_type.local_part(), copy=True)/2
-    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1')
+    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1') * vel_factor
 
 
     B_rec_old = np.copy(B_rec)
