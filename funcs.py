@@ -9,6 +9,9 @@ from scipy import ndimage
 from celluloid import Camera
 import subprocess
 import matplotlib.pyplot as plt
+import PISM
+
+ctx = PISM.Context()
 
 def identify_neighbors(n,m, nan_list, talks_to):
     nan_count = np.shape(nan_list)[0]
@@ -103,7 +106,22 @@ def shift(data, u, v, dx):
     newgrid = griddata(points, data.flatten(), (xi.flatten(), yi.flatten())).reshape(np.shape(u))
     return newgrid
 '''
+
+def deghost(field):
+    '''PISM puts a buffer of 2 cells around each field on each processor.
+    When run in parallel, this means that 2 cells on each subdomain are 
+    copies from the neighboring subdomain from a different process. 
+    If we do not want to mess with fields that
+    do not belong to our subdomain, we need to get rid of these fields'''
+    return field[2:-2,2:-2]
+
 def shift(field, u_dat, v_dat, mask, dx):
+    shape_preserver = np.copy(field)
+    #field = deghost(field)
+    #u_dat = deghost(u_dat)
+    #v_dat = deghost(v_dat)
+    #mask = deghost(mask)
+    
     x_shift, y_shift = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
     u = u_dat
     v = v_dat
@@ -117,19 +135,17 @@ def shift(field, u_dat, v_dat, mask, dx):
     y_shift = y_shift+v_shift
     field_masked=field
 
-    #x_shift=x_shift
-    #y_shift=y_shift
-    
     points=np.zeros((len(x_shift.flatten()),2))
     
-    #points = np.zeros((np.shape(x_shift)[0]*np.shape(x_shift)[1],2))
     points[:,0] = x_shift.flatten()
     points[:,1]=y_shift.flatten()
     xi, yi = np.meshgrid(range(np.shape(field)[1]), range(np.shape(field)[0]))
 
     newgrid = griddata(points, field_masked.flatten(), (xi.flatten(), yi.flatten()), 'linear').reshape(np.shape(u))
     outgrid = np.copy(field)
+    outgrid = np.copy(shape_preserver)
     outgrid[4:-4,4:-4] = newgrid[4:-4,4:-4]
+    #outgrid[4:-4,4:-4] = newgrid[4:-4,4:-4]
     #newgrid[np.isnan(newgrid)] = field[np.isnan(newgrid)]
     return outgrid
 
@@ -221,11 +237,17 @@ def calc_slope(field, res):
 
 def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_density=900, R=0.12, return_mask = False):
     H = surf - bed
-    slope = np.zeros_like(H)
+    slope = np.zeros_like(H)+1e-4
     slope[1:-1, 1:-1] = calc_slope(surf, res)[1:-1,1:-1] #ignore margins pixels of slope since they are very large
+    slope = np.maximum(slope, 1e-4)
     secpera = 31556926.
     T = (2*A*(g*ice_density)**3)/5
     max_allowed_thk = ((((dt/max_steps_PISM)*secpera/(res**2)/R)**(-1))/(T*slope**2))**(1/5)
+    #diff_allowed  = R/((dt/max_steps_PISM)*secpera/res**2)
+    #max_allowed_thk = np.ones_like(H)*1e10
+    #max_allowed_thk[2:-2,2:-2] = (diff_allowed/(diffusivity/H[2:-2,2:-2]**5))**(1/5)
+    #max_allowed_thk[np.isnan(max_allowed_thk)] = 1e10
+    #max_allowed_thk = np.minimum(1e10, max_allowed_thk)
     H_rec = np.minimum(H, max_allowed_thk)
     bed = surf - H_rec
     if return_mask:
@@ -235,13 +257,41 @@ def correct_high_diffusivity(surf, bed, dt, max_steps_PISM, res, A, g=9.8, ice_d
     else:
         return bed
 
-def movie(field_series, step=1, **kwargs):
+def calc_diffusivity(model, S_rec, B_rec):
+    model.bed_deformation_model().bed_elevation().local_part()[:] = B_rec
+    model.bed_deformation_model().bed_elevation().update_ghosts()
+
+    # we also need to update this copy of bed elevation (for consistency)
+    model.geometry().bed_elevation.local_part()[:] = B_rec
+    model.geometry().bed_elevation.update_ghosts()
+
+    # model.geometry() stores ice thickness
+    model.geometry().ice_thickness.local_part()[:] = np.maximum(0, S_rec - B_rec)
+    model.geometry().ice_thickness.update_ghosts()
+
+    dt = PISM.util.convert(1e-5, "year", "second")
+    model.run_to(ctx.time.current() + dt)
+
+    H_min = ctx.config.get_number("geometry.ice_free_thickness_standard")
+    model.geometry().ensure_consistency(H_min)
+    diags = model.stress_balance().diagnostics().asdict()
+    diffusivity = diags['diffusivity'].compute().local_part()
+
+    return diffusivity
+'''
+surf = np.zeros((212,123))
+surf[2:-2,2:-2] = get_nc_data('Kronebreen_output.nc', 'usurf', -1)
+bed =  np.zeros((212,123))
+bed[2:-2,2:-2] = get_nc_data('Kronebreen_output.nc', 'topg', -1)
+diffusivity = get_nc_data('Kronebreen_output.nc', 'diffusivity', -1)
+'''
+def movie(field_series, step=1, file_name = 'animation.mp4', **kwargs):
     fig = plt.figure()
     camera = Camera(fig)
     for f in range(0, len(field_series), step):
         plt.pcolor(field_series[f], **kwargs)
         camera.snap()
     animation = camera.animate()
-    animation.save('animation.mp4')
-    cmd = ['xdg-open', 'animation.mp4']
+    animation.save(file_name)
+    cmd = ['xdg-open', file_name]
     subprocess.call(cmd)

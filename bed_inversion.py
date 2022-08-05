@@ -144,6 +144,8 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
 
     # run PISM forward for dt years
     (h_rec, mask_iter, u_rec, v_rec, tauc_rec) = run_pism(model, dt, bed, h_old, yield_stress)
+    #diags = model.stress_balance().diagnostics().asdict()
+    #diffusivity1 = diags['diffusivity'].compute().local_part()
 
     # set velocities to 0 outside mask
     u_rec *= mask
@@ -159,8 +161,10 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
     S_rec = usurf + beta * 0.025 * misfit
+    
     # interpolate around ice margin
     if bw > 0:
+        bw = int(bw)*2
         k = np.ones((bw, bw))
         buffer = ndimage.convolve(mask_iter, k)/(bw)**2 
         criterion = np.logical_and(np.logical_and(buffer > 0, buffer != 2), mask == 1)
@@ -169,7 +173,11 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
 
     # correct bed in locations where a large diffusivity would cause pism to take many internal time steps
     if correct_diffusivity == 'yes':
+        #diags = model.stress_balance().diagnostics().asdict()
+        #diffusivity = diags['diffusivity'].compute().local_part()
+        #diffusivity = calc_diffusivity(model, S_rec, B_rec)
         B_rec, thk_mask = correct_high_diffusivity(S_rec, B_rec, dt, max_steps_PISM, res, A, return_mask = True)
+        #diffusivity2 = calc_diffusivity(model, S_rec, B_rec)
     
     # mask out 
     B_rec[mask==0] = bed[mask==0]
@@ -195,7 +203,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
         #            true_tauc[i,j] -= 4e7
         #tauc_rec[criterion] = true_tauc[criterion]
     
-    return B_rec, S_rec, tauc_rec, misfit
+    return B_rec, S_rec, tauc_rec, misfit#, thk_mask, diffusivity1, diffusivity, diffusivity2
 
 def iteration_friction_first(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
         
