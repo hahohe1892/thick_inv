@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    ice_density_in = PISM.OptionString("-ice_density", "ice temperature for isothermal flow law")
+    S_ref_rand_in = PISM.OptionString("-S_ref_rand", "ice density")
 
-    if not ice_density_in.is_set():
-        raise RuntimeError("-ice_density is required")
+    if not S_ref_rand_in.is_set():
+        raise RuntimeError("-S_ref_rand is required")
     
-    ice_density = float(ice_density_in.value())
+    S_ref_rand = float(S_ref_rand_in.value())
 
     options = {
         "-Mz": 30,
@@ -37,14 +37,14 @@ if __name__ == '__main__':
         "-geometry.update.use_basal_melt_rate": "no",
         "-stress_balance.ssa.compute_surface_gradient_inward": "no",
         "-flow_law.isothermal_Glen.ice_softness":  1.733e3*np.exp(-13.9e4/(8.3*268)), #1.2597213016951452e-24,
-        "-constants.ice.density": ice_density,
+        "-constants.ice.density": 900.,
         "-constants.sea_water.density": 1000.,
         "-bootstrapping.defaults.geothermal_flux": 0.0,
         "-stress_balance.ssa.Glen_exponent": 3.,
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_ice_density_{}.nc".format(ice_density),
+        "-o": "icecap_output_S_ref_rand_{}_correct_diffusivity_theta_0.5.nc".format(S_ref_rand),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
@@ -59,9 +59,10 @@ if __name__ == '__main__':
     # add data to input.nc so that it is distributed across different processes after initializing PISM 
     inversion_in = NC('input.nc', 'r+')
     inversion_in['topg'][:,:] = np.zeros((51,51))
-    inversion_in['usurf'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
+    usurf_pert = np.maximum(get_nc_data('ice_build_output.nc', 'usurf', 0) * np.random.normal(1, S_ref_rand, np.shape(true_bed)), np.zeros_like(true_bed))
+    inversion_in['usurf'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['mask'][:,:] = get_nc_data('ice_build_output.nc', 'mask', 0)
-    inversion_in['thk'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
+    inversion_in['thk'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data)
     inversion_in['tauc'][:,:] = np.ones((51,51))*5e7
     inversion_in.close()
@@ -111,7 +112,7 @@ if __name__ == '__main__':
                                                    A=A,
                                                    max_steps_PISM = max_steps_PISM,
                                                    treat_ocean_boundary = 'no',
-                                                   correct_diffusivity = 'no')
+                                                   correct_diffusivity = 'yes')
 
         B_rec_all.append(np.copy(B_rec))
         misfit_all.append(misfit)
