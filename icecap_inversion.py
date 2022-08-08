@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    ice_temp_in = PISM.OptionString("-ice_temp", "ice temperature for isothermal flow law")
+    ice_density_in = PISM.OptionString("-ice_density", "ice temperature for isothermal flow law")
 
-    if not ice_temp_in.is_set():
-        raise RuntimeError("-ice_temp is required")
+    if not ice_density_in.is_set():
+        raise RuntimeError("-ice_density is required")
     
-    ice_temp = float(ice_temp_in.value())
+    ice_density = float(ice_density_in.value())
 
     options = {
         "-Mz": 30,
@@ -36,15 +36,15 @@ if __name__ == '__main__':
         "-yield_stress": "constant",
         "-geometry.update.use_basal_melt_rate": "no",
         "-stress_balance.ssa.compute_surface_gradient_inward": "no",
-        "-flow_law.isothermal_Glen.ice_softness":  1.733e3*np.exp(-13.9e4/(8.3*ice_temp)), #1.2597213016951452e-24,
-        "-constants.ice.density": 900.,
+        "-flow_law.isothermal_Glen.ice_softness":  1.733e3*np.exp(-13.9e4/(8.3*268)), #1.2597213016951452e-24,
+        "-constants.ice.density": ice_density,
         "-constants.sea_water.density": 1000.,
         "-bootstrapping.defaults.geothermal_flux": 0.0,
         "-stress_balance.ssa.Glen_exponent": 3.,
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_ice_temp_{}.nc".format(ice_temp),
+        "-o": "icecap_output_ice_density_{}.nc".format(ice_density),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     p_friction = 1000
     max_steps_PISM = 20
     res = 1000
-    A = 1.733e3*np.exp(-13.9e4/(8.3*ice_temp))#1.2597213016951452e-24
+    A = 1.733e3*np.exp(-13.9e4/(8.3*268))#1.2597213016951452e-24
 
     B_rec_all = []
     misfit_all = []
