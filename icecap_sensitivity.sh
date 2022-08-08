@@ -14,6 +14,7 @@ from bed_inversion import *
 from sklearn.linear_model import LinearRegression
 
 bed_deviations = []
+bed_deviations_tf = []
 taucs = []
 vels = []
 vols = []
@@ -31,23 +32,26 @@ mask = get_nc_data('ice_build_output.nc', 'mask', -1).data/2
 xs = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75]
 for i in xs:
     bed = get_nc_data('icecap_output_mb_{}.nc'.format(i), 'topg', -1)
+    bed_tf = get_nc_data('icecap_output_mb_{}_true_friction.nc'.format(i), 'topg', -1)
     surf = get_nc_data('icecap_output_mb_{}.nc'.format(i), 'usurf', -1)
     vols.append(np.sum(surf-bed))
     taucs.append(np.nanmean(get_nc_data('icecap_output_mb_{}.nc'.format(i), 'tauc', 0)[mask==1]))
     vels.append(np.nanmean(get_nc_data('icecap_output_mb_{}.nc'.format(i), 'velbar_mag', 0)[mask==1]))
     fluxes.append(np.sum(get_nc_data('icecap_output_mb_{}.nc'.format(i), 'flux_mag', 0)[mask==1]))
     bed_deviations.append(np.nanmean((bed[mask==1] - reference_bed[mask==1])))
+    bed_deviations_tf.append(np.nanmean((bed_tf[mask==1] - reference_bed[mask==1])))
 
 xs.append(1)
 fig, ax = plt.subplots()
 taucs.append(np.mean(reference_tauc[mask==1]))
 vels.append(np.nanmean(reference_vel[mask==1]))
 vols.append(reference_vol)
+bed_deviations_tf.append(0)
 fluxes.append(np.sum(reference_flux))
-points1 = ax.scatter(xs, fluxes, c = 'orange')
+points1 = ax.scatter(xs,bed_deviations_tf, c = 'orange')
 ax1 = ax.twinx()
 bed_deviations.append(0)
-points = ax1.scatter(xs, bed_deviations)
+points = ax.scatter(xs, bed_deviations)
 plt.show()
 
 model = LinearRegression().fit(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations))
