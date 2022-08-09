@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    S_ref_rand_in = PISM.OptionString("-S_ref_rand", "ice density")
+    vel_factor_in = PISM.OptionString("-vel_factor", "multiplication of mass balance")
 
-    if not S_ref_rand_in.is_set():
-        raise RuntimeError("-S_ref_rand is required")
+    if not vel_factor_in.is_set():
+        raise RuntimeError("-vel_factor is required")
     
-    S_ref_rand = float(S_ref_rand_in.value())
+    vel_factor = float(vel_factor_in.value())
 
     options = {
         "-Mz": 30,
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         "-yield_stress": "constant",
         "-geometry.update.use_basal_melt_rate": "no",
         "-stress_balance.ssa.compute_surface_gradient_inward": "no",
-        "-flow_law.isothermal_Glen.ice_softness":  1.733e3*np.exp(-13.9e4/(8.3*268)), #1.2597213016951452e-24,
+        "-flow_law.isothermal_Glen.ice_softness":  1.2597213016951452e-24,
         "-constants.ice.density": 900.,
         "-constants.sea_water.density": 1000.,
         "-bootstrapping.defaults.geothermal_flux": 0.0,
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_S_ref_rand_{}_correct_diffusivity_theta_0.5.nc".format(S_ref_rand),
+        "-o": "icecap_output_no_friction_update.nc",#.format(vel_factor),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
@@ -59,11 +59,10 @@ if __name__ == '__main__':
     # add data to input.nc so that it is distributed across different processes after initializing PISM 
     inversion_in = NC('input.nc', 'r+')
     inversion_in['topg'][:,:] = np.zeros((51,51))
-    usurf_pert = np.maximum(get_nc_data('ice_build_output.nc', 'usurf', 0) * np.random.normal(1, S_ref_rand, np.shape(true_bed)), np.zeros_like(true_bed))
-    inversion_in['usurf'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
+    inversion_in['usurf'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['mask'][:,:] = get_nc_data('ice_build_output.nc', 'mask', 0)
-    inversion_in['thk'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
-    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data)
+    inversion_in['thk'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
+    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data) * vel_factor
     inversion_in['tauc'][:,:] = np.ones((51,51))*5e7
     inversion_in.close()
 
@@ -75,7 +74,7 @@ if __name__ == '__main__':
     B_rec = np.zeros_like(tauc_rec)
     S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
     mask = np.array(pism.geometry().cell_type.local_part(), copy=True)/2
-    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1')
+    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1') * vel_factor
 
 
     B_rec_old = np.copy(B_rec)
@@ -85,11 +84,11 @@ if __name__ == '__main__':
     dt = .1
     beta = 1
     bw = 2.5
-    pmax = 15000
-    p_friction = 1000
+    pmax = 5000
+    p_friction = 10000
     max_steps_PISM = 20
     res = 1000
-    A = 1.733e3*np.exp(-13.9e4/(8.3*268))#1.2597213016951452e-24
+    A = 1.2597213016951452e-24
 
     B_rec_all = []
     misfit_all = []
@@ -112,7 +111,7 @@ if __name__ == '__main__':
                                                    A=A,
                                                    max_steps_PISM = max_steps_PISM,
                                                    treat_ocean_boundary = 'no',
-                                                   correct_diffusivity = 'yes')
+                                                   correct_diffusivity = 'no')
 
         B_rec_all.append(np.copy(B_rec))
         misfit_all.append(misfit)
@@ -140,7 +139,6 @@ if __name__ == '__main__':
     '''
 
     #plot results, but only if script is not run on multiple cores (as this will cause a shape mismatch in the arrays)
-    '''
     try: 
         dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
         B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
@@ -161,7 +159,7 @@ if __name__ == '__main__':
         plt.show()
     except(ValueError):
         print('done')
-    '''
+
 '''
 0.0125
 0.0081
