@@ -295,3 +295,25 @@ def movie(field_series, step=1, file_name = 'animation.mp4', **kwargs):
     animation.save(file_name)
     cmd = ['xdg-open', file_name]
     subprocess.call(cmd)
+
+def rmse(predictions, targets):
+    return np.sqrt(np.mean((predictions-targets)**2))
+
+def plot_list(list, r, c, **kwargs):
+    if r*c<len(list):
+        raise ValueError('plot too small for this list')
+    
+    fig, ax = plt.subplots(r, c)
+    j,k = (0,0)
+    rmses = []
+    for i,element in enumerate(list):
+        field = ax[j,k].pcolor(element, **kwargs)
+        if i == 0:
+           k+=1
+        elif (i-j)%((j+1)*(c-1))!=0:
+            k+=1
+        else:
+            k-=(c-1)
+            j+=1
+    return fig, ax
+        
