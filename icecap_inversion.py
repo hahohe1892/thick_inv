@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    vel_factor_in = PISM.OptionString("-vel_factor", "multiplication of mass balance")
+    ice_temp_in = PISM.OptionString("-ice_temp", "ice temperature for isothermal flow law")
 
-    if not vel_factor_in.is_set():
-        raise RuntimeError("-vel_factor is required")
+    if not ice_temp_in.is_set():
+        raise RuntimeError("-ice_temp is required")
     
-    vel_factor = float(vel_factor_in.value())
+    ice_temp = float(ice_temp_in.value())
 
     options = {
         "-Mz": 30,
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         "-yield_stress": "constant",
         "-geometry.update.use_basal_melt_rate": "no",
         "-stress_balance.ssa.compute_surface_gradient_inward": "no",
-        "-flow_law.isothermal_Glen.ice_softness":  1.2597213016951452e-24,
+        "-flow_law.isothermal_Glen.ice_softness":  1.733e3*np.exp(-13.9e4/(8.3*ice_temp)), #1.2597213016951452e-24,
         "-constants.ice.density": 900.,
         "-constants.sea_water.density": 1000.,
         "-bootstrapping.defaults.geothermal_flux": 0.0,
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_no_friction_update.nc",#.format(vel_factor),
+        "-o": "icecap_output_ice_temp_{}_true_friction.nc".format(ice_temp),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
@@ -62,8 +62,8 @@ if __name__ == '__main__':
     inversion_in['usurf'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['mask'][:,:] = get_nc_data('ice_build_output.nc', 'mask', 0)
     inversion_in['thk'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
-    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data) * vel_factor
-    inversion_in['tauc'][:,:] = np.ones((51,51))*5e7
+    inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data)
+    inversion_in['tauc'][:,:] = get_nc_data('ice_build_output.nc', 'tauc', 0)#np.ones((51,51))*5e7
     inversion_in.close()
 
     pism = create_pism("input.nc", options)
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     B_rec = np.zeros_like(tauc_rec)
     S_rec = np.array(pism.geometry().ice_surface_elevation.local_part(), copy=True)
     mask = np.array(pism.geometry().cell_type.local_part(), copy=True)/2
-    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1') * vel_factor
+    vel_ref = read_variable(pism.grid(), "input.nc", 'velsurf_mag', 'm year-1')
 
 
     B_rec_old = np.copy(B_rec)
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     p_friction = 10000
     max_steps_PISM = 20
     res = 1000
-    A = 1.2597213016951452e-24
+    A = 1.733e3*np.exp(-13.9e4/(8.3*ice_temp))#1.2597213016951452e-24
 
     B_rec_all = []
     misfit_all = []
@@ -139,6 +139,7 @@ if __name__ == '__main__':
     '''
 
     #plot results, but only if script is not run on multiple cores (as this will cause a shape mismatch in the arrays)
+    '''
     try: 
         dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
         B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
@@ -159,7 +160,7 @@ if __name__ == '__main__':
         plt.show()
     except(ValueError):
         print('done')
-
+    '''
 '''
 0.0125
 0.0081

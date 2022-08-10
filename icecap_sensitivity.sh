@@ -1,8 +1,8 @@
 #!/bin/bash
 
-for S_ref_rand in 0.02 0.04
+for ice_temp in 264 266 270 272
 do
-    mpiexec -n 1 python3 icecap_inversion.py -S_ref_rand $S_ref_rand
+    mpiexec -n 1 python3 icecap_inversion.py -ice_temp $ice_temp
 done
 
 
@@ -36,20 +36,22 @@ reference_vel  = get_nc_data('icecap_output_mb_1.0.nc', 'velbar_mag', -1)
 reference_flux = get_nc_data('icecap_output_mb_1.0.nc', 'flux_mag', -1)
 mask = get_nc_data('ice_build_output.nc', 'mask', -1).data/2
 xs = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75]
+xs = [264.0, 266.0, 270.0, 272.0]
+#xs = [775.0, 800.0, 825.0, 850.0, 875.0, 925.0]
 for i in xs:
-    bed = get_nc_data('icecap_output_vel_{}.nc'.format(i), 'topg', -1)
-    #bed_tf = get_nc_data('icecap_output_vel_{}_true_friction.nc'.format(i), 'topg', -1)
-    surf = get_nc_data('icecap_output_vel_{}.nc'.format(i), 'usurf', -1)
-    #surf_tf =  get_nc_data('icecap_output_vel_{}_true_friction.nc'.format(i), 'usurf', -1)
+    bed = get_nc_data('icecap_output_ice_temp_{}.nc'.format(i), 'topg', -1)
+    bed_tf = get_nc_data('icecap_output_ice_temp_{}_true_friction.nc'.format(i), 'topg', -1)
+    surf = get_nc_data('icecap_output_ice_temp_{}.nc'.format(i), 'usurf', -1)
+    surf_tf =  get_nc_data('icecap_output_ice_temp_{}_true_friction.nc'.format(i), 'usurf', -1)
     vols.append(np.sum(surf-bed))
     vols_tf.append(np.sum(surf_tf-bed_tf))
-    taucs.append(np.nanmedian(get_nc_data('icecap_output_vel_{}.nc'.format(i), 'tauc', 0)[mask==1]))
-    vels.append(np.nanmean(get_nc_data('icecap_output_vel_{}.nc'.format(i), 'velbar_mag', 0)[mask==1]))
-    fluxes.append(np.sum(get_nc_data('icecap_output_vel_{}.nc'.format(i), 'flux_mag', 0)[mask==1]))
+    taucs.append(np.nanmedian(get_nc_data('icecap_output_ice_temp_{}.nc'.format(i), 'tauc', 0)[mask==1]))
+    vels.append(np.nanmean(get_nc_data('icecap_output_ice_temp_{}.nc'.format(i), 'velbar_mag', 0)[mask==1]))
+    fluxes.append(np.sum(get_nc_data('icecap_output_ice_temp_{}.nc'.format(i), 'flux_mag', 0)[mask==1]))
     bed_deviations.append(np.nanmean((bed[mask==1] - reference_bed[mask==1])))
     #bed_deviations_tf.append(np.nanmean((bed_tf[mask==1] - reference_bed[mask==1])))
 
-xs.append(1)
+xs.append(268)
 fig, ax = plt.subplots()
 taucs.append(np.median(reference_tauc[mask==1]))
 vels.append(np.nanmean(reference_vel[mask==1]))
@@ -57,17 +59,17 @@ vols.append(reference_vol)
 vols_tf.append(reference_vol)
 bed_deviations_tf.append(0)
 fluxes.append(np.sum(reference_flux))
-line1 = ax.plot(np.sort(xs[3:]), np.sort(np.array(xs[3:]))**-2, '--', c = 'orange', label='1 / velocity errors sqaured')
+#line1 = ax.plot(np.sort(xs[3:]), np.sort(np.array(xs[3:]))**-2, '--', c = 'orange', label='1 / velocity errors sqaured')
 #ax1 = ax.twinx()
-#points1 = ax1.scatter(xs, taucs/np.median(true_tauc[mask==1]), c = 'orange', label='true friction field prescribed')
-#ax1.set_ylim([0,1])
+points1 = ax.scatter(xs, vols_tf/true_vol, c = 'orange', label='true friction field prescribed')
+#ax1.set_ylim([0,2])
 bed_deviations.append(0)
-points = ax.scatter(xs, vols/true_vol)
-line = ax.plot(np.sort(xs), np.array([no_sliding_vol]*len(xs))/true_vol, '--', label='ice volume assuming no sliding')
+points = ax.scatter(xs, vols/true_vol, label = 'applying friction updates')
+#line = ax.plot(np.sort(xs), np.array([no_sliding_vol]*len(xs))/true_vol, '--', label='ice volume assuming no sliding')
 ax.legend()
-ax.set_xlabel('velocity / true velocity')
+ax.set_xlabel('ice temperature (K)')
 ax.set_ylabel('modelled ice volume / true ice volume')
-#plt.savefig('./figures/velocity_errors.png')
+plt.savefig('./figures/ice_temperature_errors.png')
 plt.show()
 
 
