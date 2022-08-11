@@ -1,8 +1,8 @@
  #!/bin/bash
 
-for S_ref_rand in 5 10 15 25 50
+for dt in 1 .5 .25 .15 .05 .025 .01
 do
-    mpiexec -n 1 python3 icecap_inversion.py -S_ref_rand $S_ref_rand
+    mpiexec -n 1 python3 icecap_inversion.py -dt $dt
 done
 
 
@@ -80,7 +80,7 @@ ip2 = InsetPosition(ax, [0.65,0.4,0.3,0.3])
 ax2.set_axes_locator(ip2)
 ax2.pcolor(beds[-1], vmin = -500, vmax = 1000)
 ax2.axis('off')
-plt.savefig('./figures/mass_balance_errors_v1.1.png')
+plt.savefig('./figures/velocity_errors_v1.1.png')
 plt.show()
 
 model = LinearRegression().fit(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations))

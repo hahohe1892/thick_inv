@@ -156,7 +156,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
     
     # calculate dh/dt misfit and shift it
     misfit = dh_rec - dh_ref
-    misfit = shift(misfit, u_rec, v_rec, mask, .3)
+    #misfit = shift(misfit, u_rec, v_rec, mask, .3)
     
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
