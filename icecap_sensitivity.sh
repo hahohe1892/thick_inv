@@ -1,8 +1,8 @@
  #!/bin/bash
 
-for dt in 1 .5 .25 .15 .05 .025 .01
+for beta in 0.25 0.5 0.75 1.25 1.5 1.75 2 3 5
 do
-    mpiexec -n 1 python3 icecap_inversion.py -dt $dt
+    mpiexec -n 1 python3 icecap_inversion.py -beta $beta
 done
 
 
@@ -86,22 +86,48 @@ plt.show()
 model = LinearRegression().fit(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations))
 print(model.score(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations)))
 
+dts = [1.0, .5, .25, .15, .05, .025, .01]
+betas = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2.0, 3.0, 5.0]
+bed_misfits = []
+dh_misfits = []
+beds = []
+for beta in betas:
+    bed_misfits.append(np.loadtxt('icecap_output_beta_{}_B.csv'.format(beta)))
+    dh_misfits.append(np.loadtxt('icecap_output_beta_{}_dh.csv'.format(beta)))
+    beds.append(get_nc_data('icecap_output_beta_{}.nc'.format(beta), 'topg', -1))
 
-for surf in surfs:
-    surf_deviations.append(np.mean(abs(surf[mask==1] - true_surf[mask==1])))
+colormap = plt.cm.copper
+colors = [colormap(i) for i in np.linspace(0, 1,len(betas))]
+bounds = np.linspace(0, np.max(betas))
+norm = mpl.colors.BoundaryNorm(bounds, colormap.N)
+sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm))
+#colormap1 = plt.cm.Reds
+#colors1 = [colormap1(i) for i in np.linspace(0, 1,len(betas))]
+fig, ax = plt.subplots(1,2, figsize=(10,4))
+#ax1 = ax.twinx()
+ax1 = plt.axes([0,0,1,1])
+ip1 = InsetPosition(ax[0], [0.5,0.5,0.4,0.35])
+ax1.set_axes_locator(ip1)
+ax2 = plt.axes([0,0,.99,1])
+ip2 = InsetPosition(ax[1], [0.45,0.5,0.4,0.35])
+ax2.set_axes_locator(ip2)
+for i in range(len(bed_misfits)):
+    line = ax[0].plot(bed_misfits[i], color = colors[i], label = 'K = {}'.format(betas[i]))
+    line_in = ax1.plot(range(8000,10000), bed_misfits[i][8000:10000], color = colors[i])
+    line1 = ax[1].plot(dh_misfits[i], '--', color = colors[i], label = 'K = {}'.format(betas[i]))
+    line_in = ax2.plot(range(8000,10000), dh_misfits[i][8000:10000], '--', color = colors[i])
 
-
-
-fig, ax = plot_list(beds, 3,2, vmin = -500, vmax = 1000)
-ax[2,1].pcolor(true_bed, vmin = -500, vmax = 1000)
+ax[1].yaxis.tick_right()
+ax[1].yaxis.set_label_position("right")
+ax[0].set_xlabel('iteration')
+ax[1].set_xlabel('iteration')
+ax[0].set_ylabel('bed misfit (m)')
+ax[1].set_ylabel('dh/dt misfit (m)')
+ax[0].legend(loc=2, bbox_to_anchor=(0.9,0.9))
+#ax[1].legend()
+#cbar = fig.colorbar(sm, ax = ax[0])
+#cbar1 = fig.colorbar(sm, ax = ax[1])
+#plt.savefig('icecap_K_sensitivity_v1.0.png')
 plt.show()
 
-fig,ax = plt.subplots()
-line = ax.plot(range(true_bed.shape[1]), true_bed[27,:])
-line = ax.plot(range(true_bed.shape[1]), true_surf[27,:])
-for i in range(len(beds)):
-    line = ax.plot(range(true_bed.shape[1]), beds[i][27,:], c='r')
-    line = ax.plot(range(true_bed.shape[1]), surfs_in[i][27,:], c='r')    
-
-plt.show()
 END

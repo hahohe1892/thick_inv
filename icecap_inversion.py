@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    dt_in = PISM.OptionString("-dt", "ice density")
+    beta_in = PISM.OptionString("-beta", "ice density")
 
-    if not dt_in.is_set():
-        raise RuntimeError("-dt is required")
+    if not beta_in.is_set():
+        raise RuntimeError("-beta is required")
     
-    dt = float(dt_in.value())
+    beta = float(beta_in.value())
 
     options = {
         "-Mz": 30,
@@ -44,11 +44,11 @@ if __name__ == '__main__':
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_dt_{}.nc".format(dt),
+        "-o": "icecap_output_beta_{}.nc".format(beta),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
-        "-output.timeseries.filename": "icecap_timeseries_dt_{}.nc".format(dt)
+        "-output.timeseries.filename": "icecap_timeseries_beta_{}.nc".format(beta)
     }
 
     true_bed = get_nc_data('ice_build_output.nc', 'topg', 0)
@@ -81,8 +81,8 @@ if __name__ == '__main__':
     S_rec_old = np.copy(S_rec)
 
     # set inversion paramters
-    #dt = .1
-    beta = 1
+    dt = .1
+    #beta = 1
     bw = 2.5
     pmax = 15000
     p_friction = 1000
@@ -119,10 +119,10 @@ if __name__ == '__main__':
     dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
     B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
 
-    with open('icecap_output_dt_{}_dh.csv'.format(dt), 'w') as fp:
+    with open('icecap_output_beta_{}_dh.csv'.format(beta), 'w') as fp:
         np.savetxt(fp,dh_misfit_vs_iter)
 
-    with open('icecap_output_dt_{}_B.csv'.format(dt), 'w') as fp:
+    with open('icecap_output_beta_{}_B.csv'.format(beta), 'w') as fp:
         np.savetxt(fp,B_misfit_vs_iter)
 
     pism.save_results()
