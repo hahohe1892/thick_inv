@@ -8,12 +8,12 @@ from netCDF4 import Dataset as NC
 from funcs import *
 
 if __name__ == '__main__':
-    beta_in = PISM.OptionString("-beta", "ice density")
+    theta_in = PISM.OptionString("-theta", "ice density")
 
-    if not beta_in.is_set():
-        raise RuntimeError("-beta is required")
+    if not theta_in.is_set():
+        raise RuntimeError("-theta is required")
     
-    beta = float(beta_in.value())
+    theta = float(theta_in.value())
 
     options = {
         "-Mz": 30,
@@ -44,11 +44,11 @@ if __name__ == '__main__':
         "-constants.standard_gravity": 9.81,
         "-ocean.sub_shelf_heat_flux_into_ice": 0.0,
         "-stress_balance.sia.bed_smoother.range": 0.0,
-        "-o": "icecap_output_beta_{}.nc".format(beta),
+        "-o": "icecap_output_theta_{}_S_pert_5.nc".format(theta),
         "-sea_level.constant.value": -1e4,
         "-time_stepping.assume_bed_elevation_changed": "true",
         "-output.timeseries.times": 1,
-        "-output.timeseries.filename": "icecap_timeseries_beta_{}.nc".format(beta)
+        "-output.timeseries.filename": "icecap_timeseries_theta_{}_S_pert_5.nc".format(theta)
     }
 
     true_bed = get_nc_data('ice_build_output.nc', 'topg', 0)
@@ -59,9 +59,10 @@ if __name__ == '__main__':
     # add data to input.nc so that it is distributed across different processes after initializing PISM 
     inversion_in = NC('input.nc', 'r+')
     inversion_in['topg'][:,:] = np.zeros((51,51))
-    inversion_in['usurf'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
+    usurf_pert = np.maximum(get_nc_data('ice_build_output.nc', 'usurf', 0) + np.random.normal(1, 5, np.shape(true_bed)), np.zeros_like(true_bed))
+    inversion_in['usurf'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['mask'][:,:] = get_nc_data('ice_build_output.nc', 'mask', 0)
-    inversion_in['thk'][:,:] = get_nc_data('ice_build_output.nc', 'usurf', 0)
+    inversion_in['thk'][:,:] = usurf_pert#get_nc_data('ice_build_output.nc', 'usurf', 0)
     inversion_in['velsurf_mag'][:,:] = np.maximum(0, get_nc_data('ice_build_output.nc', 'velsurf_mag', 0).data)
     inversion_in['tauc'][:,:] = np.ones((51,51))*5e7
     inversion_in.close()
@@ -82,7 +83,8 @@ if __name__ == '__main__':
 
     # set inversion paramters
     dt = .1
-    #beta = 1
+    beta = 1
+    #theta = 0.025
     bw = 2.5
     pmax = 15000
     p_friction = 1000
@@ -105,6 +107,7 @@ if __name__ == '__main__':
                                                    B_rec, S_rec, tauc_rec, mask, dh_ref, vel_ref,
                                                    dt = dt,
                                                    beta = beta,
+                                                   theta = theta,
                                                    bw = bw,
                                                    update_friction = update_friction,
                                                    res=res,
@@ -119,10 +122,10 @@ if __name__ == '__main__':
     dh_misfit_vs_iter = [np.nanmean(abs(i[mask==1])) for i in misfit_all]
     B_misfit_vs_iter = [np.nanmean(abs((i[2:-2,2:-2]-true_bed)[mask[2:-2,2:-2]==1])) for i in B_rec_all]
 
-    with open('icecap_output_beta_{}_dh.csv'.format(beta), 'w') as fp:
+    with open('icecap_output_theta_{}_S_pert_5_dh.csv'.format(theta), 'w') as fp:
         np.savetxt(fp,dh_misfit_vs_iter)
 
-    with open('icecap_output_beta_{}_B.csv'.format(beta), 'w') as fp:
+    with open('icecap_output_theta_{}_S_pert_5_B.csv'.format(theta), 'w') as fp:
         np.savetxt(fp,B_misfit_vs_iter)
 
     pism.save_results()

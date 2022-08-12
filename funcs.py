@@ -305,7 +305,6 @@ def plot_list(list, r, c, **kwargs):
     
     fig, ax = plt.subplots(r, c)
     j,k = (0,0)
-    rmses = []
     for i,element in enumerate(list):
         field = ax[j,k].pcolor(element, **kwargs)
         if i == 0:

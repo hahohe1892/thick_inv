@@ -137,7 +137,7 @@ def run_pism(pism, dt_years, bed_elevation, ice_thickness, yield_stress):
 
     return (H, mask, u_surface, v_surface, tauc)
 
-def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
+def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, theta, bw, update_friction, res, A, correct_diffusivity ='no', max_steps_PISM = 50, treat_ocean_boundary='no', contact_zone = None, ocean_mask = None):
         
     h_old = usurf - bed
     h_old*= mask
@@ -160,7 +160,7 @@ def iteration(model, bed, usurf, yield_stress, mask, dh_ref, vel_ref, dt, beta, 
     
     # apply bed and surface corrections
     B_rec = bed - beta * misfit
-    S_rec = usurf + beta * 0.025 * misfit
+    S_rec = usurf + beta * theta * misfit
     
     # interpolate around ice margin
     if bw > 0:

@@ -1,8 +1,8 @@
  #!/bin/bash
 
-for beta in 0.25 0.5 0.75 1.25 1.5 1.75 2 3 5
+for theta in 0 0.015 0.05 0.075 0.1 0.5
 do
-    mpiexec -n 1 python3 icecap_inversion.py -beta $beta
+    mpiexec -n 1 python3 icecap_inversion.py -theta $theta
 done
 
 
@@ -86,15 +86,32 @@ plt.show()
 model = LinearRegression().fit(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations))
 print(model.score(np.array(S_ref_rands).reshape((-1,1)), np.array(bed_deviations)))
 
-dts = [1.0, .5, .25, .15, .05, .025, .01]
+dts = [1.0, .5, .25, .15, .05, .01]
 betas = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2.0, 3.0, 5.0]
+thetas = [0.0, 0.015, 0.05,0.1, 0.5]
 bed_misfits = []
 dh_misfits = []
 beds = []
-for beta in betas:
-    bed_misfits.append(np.loadtxt('icecap_output_beta_{}_B.csv'.format(beta)))
-    dh_misfits.append(np.loadtxt('icecap_output_beta_{}_dh.csv'.format(beta)))
-    beds.append(get_nc_data('icecap_output_beta_{}.nc'.format(beta), 'topg', -1))
+beds_S = []
+for theta in thetas:
+    bed_misfits.append(np.loadtxt('icecap_output_theta_{}_B.csv'.format(theta)))
+    dh_misfits.append(np.loadtxt('icecap_output_theta_{}_dh.csv'.format(theta)))
+    beds.append(get_nc_data('icecap_output_theta_{}.nc'.format(theta), 'topg', -1))
+    beds_S.append(get_nc_data('icecap_output_theta_{}_S_pert_5.nc'.format(theta), 'topg', -1))
+
+plot_beds = []
+[plot_beds.append(i) for i in beds]
+plot_beds[1] = reference_bed
+betas[1] = 0.025
+[plot_beds.append(i) for i in beds_S]
+plot_beds[6] = get_nc_data('icecap_output_S_ref_rand_5.0_correct_diffusivity.nc', 'topg', 0)
+fig, ax = plot_list(plot_beds, 2, 5, vmin = -500, vmax = 500)
+fig.set_size_inches(10,5)
+for i,a in enumerate(ax[0,:5]):
+    a.set_title('theta = {}'.format(thetas[i]))
+
+plt.savefig('./figures/icecap_theta_sensitivity_v0.1.png')
+plt.show()
 
 colormap = plt.cm.copper
 colors = [colormap(i) for i in np.linspace(0, 1,len(betas))]
